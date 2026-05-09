@@ -41,7 +41,7 @@
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ── CONFIG ────────────────────────────────────────────────
-const VAPID_PUBLIC_KEY = 'BNWk-vlWQV0P4StKFZj4HsaKv_tb42CUq0_WEguYggeMdplSlwEf-l47gbTltqE73b-u-0z4FLRM1pKJZ_0SHBY';
+const VAPID_PUBLIC_KEY = 'BFR6cLQKBHSaFAHeEBrvDYu-Oc-mykF3UUT1Ism-c4DII9yTegFTBekytVYdgm4S20Ek5CDCTuJEGaMI0PF4Mzc';
 
 // base64url → Uint8Array 변환
 function urlBase64ToUint8Array(b64) {
@@ -52,25 +52,27 @@ function urlBase64ToUint8Array(b64) {
 
 async function subscribePush(userName) {
   try {
-    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
+    if(!('serviceWorker' in navigator)) return false;
     const reg = await navigator.serviceWorker.ready;
-    // 기존 구독 해제 후 새로 구독 (VAPID 키 불일치 방지)
+    // FCM 토큰 가져오기 (service worker registration 이용)
     const existing = await reg.pushManager.getSubscription();
     if(existing) await existing.unsubscribe();
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
-    const subJson = sub.toJSON();
-    console.log('구독 데이터:', JSON.stringify(subJson));
+    // FCM endpoint에서 토큰 추출
+    const endpoint = sub.endpoint;
+    const token = endpoint.split('/').pop();
+    console.log('FCM token:', token);
     const fbUrl = 'https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app';
-    const res = await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
+    const res = await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(subJson)
+      body: JSON.stringify(token)
     });
     const result = await res.json();
-    console.log('Firebase 저장 결과:', JSON.stringify(result));
+    console.log('FCM 토큰 저장:', result);
     return true;
   } catch(e) { console.error('push subscribe error', e); return false; }
 }
@@ -80,7 +82,7 @@ async function unsubscribePush(userName) {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     if(sub) await sub.unsubscribe();
-    await fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(userName)}.json`, {method:'DELETE'});
+    await fetch(`https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app/fcm_tokens/${encodeURIComponent(userName)}.json`, {method:'DELETE'});
   } catch(e) {}
 }
 
