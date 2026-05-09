@@ -52,19 +52,24 @@ function urlBase64ToUint8Array(b64) {
 
 async function subscribePush(userName) {
   try {
-    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return false;
     const reg = await navigator.serviceWorker.ready;
+    // 기존 구독 해제 후 새로 구독 (VAPID 키 불일치 방지)
     const existing = await reg.pushManager.getSubscription();
-    const sub = existing || await reg.pushManager.subscribe({
+    if(existing) await existing.unsubscribe();
+    const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
-    // Firebase에 구독 저장
-    await fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
+    const subJson = sub.toJSON();
+    console.log('구독 데이터:', JSON.stringify(subJson));
+    const res = await fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(sub.toJSON())
+      body: JSON.stringify(subJson)
     });
+    const result = await res.json();
+    console.log('Firebase 저장 결과:', JSON.stringify(result));
     return true;
   } catch(e) { console.error('push subscribe error', e); return false; }
 }
