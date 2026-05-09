@@ -3116,9 +3116,15 @@ function App() {
     setPage("home");
     try { localStorage.setItem("msde_user", JSON.stringify(u)); } catch(e) {}
     fetchUnread(u);
-    // 알림 허용 여부 확인 (관리자 제외, 아직 결정 안 한 경우)
-    if(!u.isAdmin && 'Notification' in window && Notification.permission === 'default') {
-      setTimeout(()=>setShowPushPrompt(true), 1000);
+    // 알림 허용 - 로그인 시 자동 처리
+    if(!u.isAdmin && 'Notification' in window) {
+      if(Notification.permission === 'granted') {
+        // 이미 허용된 경우 바로 토큰 등록
+        setTimeout(()=>subscribePush(u.name), 1000);
+      } else if(Notification.permission === 'default') {
+        // 아직 결정 안 한 경우 팝업 표시
+        setTimeout(()=>setShowPushPrompt(true), 1000);
+      }
     }
   }
   function handleLogout() {
@@ -3159,7 +3165,6 @@ function App() {
               <button onClick={async()=>{
                 const ok = await subscribePush(user.name);
                 setShowPushPrompt(false);
-                if(ok) alert("✅ 알림이 설정됐어요!");
               }} style={{flex:2,padding:"12px",background:"linear-gradient(135deg,#60c0f0,#4090c0)",border:"none",borderRadius:12,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 🔔 알림 받기
               </button>
