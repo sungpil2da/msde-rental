@@ -1,34 +1,27 @@
-const CACHE = 'msde-v2';
-const ASSETS = ['/', '/index.html'];
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-  ));
-  self.clients.claim();
-});
-self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+firebase.initializeApp({
+  apiKey: "AIzaSyCBnt83_rya4Y_qs68_yAcdrhaezNhW9Ks",
+  authDomain: "betmsde-4443e.firebaseapp.com",
+  projectId: "betmsde-4443e",
+  storageBucket: "betmsde-4443e.firebasestorage.app",
+  messagingSenderId: "340466602931",
+  appId: "1:340466602931:web:44c6423863aee0d75f31c6"
 });
 
-// 푸시 알림 수신
-self.addEventListener('push', e => {
-  const data = e.data?.json() || {};
-  const title = data.title || 'MSDE 대여시스템';
-  const body  = data.body  || '새 알림이 있어요!';
-  e.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      vibrate: [200, 100, 200],
-      data: { url: '/' }
-    })
-  );
+const messaging = firebase.messaging();
+
+// 백그라운드 푸시 수신
+messaging.onBackgroundMessage(payload => {
+  const { title, body } = payload.notification || {};
+  self.registration.showNotification(title || 'MSDE 대여시스템', {
+    body: body || '새 알림이 있어요!',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [200, 100, 200],
+    data: { url: 'https://msderental.netlify.app' }
+  });
 });
 
 // 알림 클릭 시 앱 열기
@@ -37,7 +30,12 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type: 'window' }).then(list => {
       if (list.length) return list[0].focus();
-      return clients.openWindow('/');
+      return clients.openWindow('https://msderental.netlify.app');
     })
   );
 });
+
+// 캐시
+const CACHE = 'msde-v3';
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => { self.clients.claim(); });
