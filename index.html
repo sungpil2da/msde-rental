@@ -11,6 +11,24 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="MSDE"/>
   <link rel="manifest" href="manifest.json"/>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyCBnt83_rya4Y_qs68_yAcdrhaezNhW9Ks",
+      authDomain: "betmsde-4443e.firebaseapp.com",
+      databaseURL: "https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "betmsde-4443e",
+      storageBucket: "betmsde-4443e.firebasestorage.app",
+      messagingSenderId: "340466602931",
+      appId: "1:340466602931:web:44c6423863aee0d75f31c6"
+    };
+    const app = initializeApp(firebaseConfig);
+    const messaging = getMessaging(app);
+    window._fcmMessaging = messaging;
+    window._fcmGetToken = getToken;
+    window._fcmVapidKey = "BFR6cLQKBHSaFAHeEBrvDYu-Oc-mykF3UUT1Ism-c4DII9yTegFTBekytVYdgm4S20Ek5CDCTuJEGaMI0PF4Mzc";
+  </script>
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -53,17 +71,17 @@ function urlBase64ToUint8Array(b64) {
 async function subscribePush(userName) {
   try {
     if(!('serviceWorker' in navigator)) return false;
-    const reg = await navigator.serviceWorker.ready;
-    // FCM 토큰 가져오기 (service worker registration 이용)
-    const existing = await reg.pushManager.getSubscription();
-    if(existing) await existing.unsubscribe();
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    // Firebase SDK getToken 방식으로 FCM 토큰 발급
+    const waitMessaging = () => new Promise((resolve) => {
+      const check = () => window._fcmMessaging && window._fcmGetToken ? resolve() : setTimeout(check, 100);
+      check();
     });
-    // FCM endpoint에서 토큰 추출
-    const endpoint = sub.endpoint;
-    const token = endpoint.split('/').pop();
+    await waitMessaging();
+    const reg = await navigator.serviceWorker.ready;
+    const token = await window._fcmGetToken(window._fcmMessaging, {
+      vapidKey: window._fcmVapidKey,
+      serviceWorkerRegistration: reg
+    });
     console.log('FCM token:', token);
     const fbUrl = 'https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app';
     const res = await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
