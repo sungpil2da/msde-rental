@@ -63,7 +63,8 @@ async function subscribePush(userName) {
     });
     const subJson = sub.toJSON();
     console.log('구독 데이터:', JSON.stringify(subJson));
-    const res = await fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
+    const fbUrl = 'https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app';
+    const res = await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(subJson)
