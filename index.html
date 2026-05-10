@@ -264,6 +264,18 @@ async function fbDeleteBetSuggestion(key) {
 async function fbLikeBetSuggestion(key, likes) {
   await fetch(`${FIREBASE_URL}/bet_suggestions/${key}.json`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({likes}) });
 }
+async function fbLikePost(postKey, userName, isNotice=false) {
+  const path = isNotice ? `notices` : `board`;
+  const res = await fetch(`${FIREBASE_URL}/${path}/${postKey}/likes.json`);
+  const likes = await res.json() || [];
+  const arr = Array.isArray(likes) ? likes : [];
+  const newLikes = arr.includes(userName) ? arr.filter(v=>v!==userName) : [...arr, userName];
+  await fetch(`${FIREBASE_URL}/${path}/${postKey}/likes.json`, {
+    method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newLikes)
+  });
+  return newLikes;
+}
+
 async function fbVote(postKey, optionIdx, userName) {
   // 해당 옵션의 votes 배열에 userName 추가/제거 (토글)
   const res = await fetch(`${FIREBASE_URL}/board/${postKey}/poll/options/${optionIdx}/votes.json`);
@@ -397,6 +409,13 @@ function ReplyablePost({ s, onRefresh, setMode, setPwInput, setErr, BOARD_COLOR,
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,marginBottom:replies.length>0||showReply?10:0}}>
         <span style={{fontSize:11,color:c.muted}}>{new Date(s.createdAt).toLocaleDateString("ko-KR",{month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
         <div style={{display:"flex",gap:6}}>
+          <button onClick={async()=>{
+            if(!currentUser) return;
+            await fbLikePost(s.fbKey, currentUser.name, s.isNotice||false);
+            onRefresh();
+          }} style={{padding:"3px 10px",background:(s.likes||[]).includes(currentUser?.name)?`#ff6b6b20`:"none",border:`1px solid ${(s.likes||[]).includes(currentUser?.name)?"#ff6b6b":c.border}`,borderRadius:6,color:(s.likes||[]).includes(currentUser?.name)?"#ff6b6b":c.muted,cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",gap:3}}>
+            ❤️ 개추 {(s.likes||[]).length > 0 ? (s.likes||[]).length : ""}
+          </button>
           <button onClick={()=>setShowReply(v=>!v)} style={{padding:"3px 10px",background:showReply?`${BOARD_COLOR}20`:"none",border:`1px solid ${BOARD_COLOR}44`,borderRadius:6,color:BOARD_COLOR,cursor:"pointer",fontSize:11}}>
             💬 답글{replies.length>0?` (${replies.length})`:""}
           </button>
