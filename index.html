@@ -214,10 +214,10 @@ async function fbGetUser(name) {
   const data = await res.json();
   return data || null;
 }
-async function fbCreateUser(name, studentId, password) {
+async function fbCreateUser(name, studentId, password, email) {
   await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(name)}.json`, {
     method:"PUT", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({ name, studentId, password, createdAt:Date.now() })
+    body:JSON.stringify({ name, studentId, email, password, createdAt:Date.now() })
   });
 }
 
@@ -1857,7 +1857,7 @@ function AdminPanelPage({ onBack }) {
                     <div style={{width:36,height:36,borderRadius:10,background:"#e87e7e18",border:"1px solid #e87e7e33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>👤</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:14,fontWeight:700,color:c.text}}>{u.name}</div>
-                      <div style={{fontSize:11,color:c.muted}}>학번 {u.studentId} · 가입 {fmtTime(u.createdAt)}</div>
+                      <div style={{fontSize:11,color:c.muted}}>학번 {u.studentId} · {u.email||"이메일 없음"} · 가입 {fmtTime(u.createdAt)}</div>
                     </div>
                     <button onClick={()=>setDeleteTarget(u)}
                       style={{padding:"5px 12px",background:"#e87e7e15",border:"1px solid #e87e7e44",borderRadius:7,color:"#e87e7e",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>
@@ -2984,6 +2984,7 @@ function LoginScreen({ onLogin }) {
   const [mode, setMode]       = useState("login");
   const [name, setName]       = useState("");
   const [studentId, setSid]   = useState("");
+  const [email, setEmail]     = useState("");
   const [password, setPass]   = useState("");
   const [password2, setPass2] = useState("");
   const [err, setErr]         = useState("");
@@ -3023,6 +3024,7 @@ function LoginScreen({ onLogin }) {
     setErr("");
     if (!name.trim()) return setErr("이름을 입력해주세요.");
     if (!studentId.trim()) return setErr("학번을 입력해주세요.");
+    if (!email.trim()) return setErr("이메일을 입력해주세요.");
     if (!password) return setErr("비밀번호를 입력해주세요.");
     if (password !== password2) return setErr("비밀번호가 일치하지 않습니다.");
     if (password.length < 4) return setErr("비밀번호는 4자리 이상이어야 합니다.");
@@ -3030,13 +3032,14 @@ function LoginScreen({ onLogin }) {
     try {
       const existing = await fbGetUser(name.trim());
       if (existing) return setErr("이미 사용 중인 이름입니다.");
-      await fbCreateUser(name.trim(), studentId.trim(), password);
+      await fbCreateUser(name.trim(), studentId.trim(), password, email.trim());
       // 회원가입 후 로그인 화면으로 (앱 설치 안내 보여주기 위해)
       setMode("login");
       setName(name.trim());
       setPass("");
       setPass2("");
       setSid("");
+      setEmail("");
       setErr("✅ 가입 완료! 이제 간편하게 앱을 설치해보세요 📲");
     } catch(e) { setErr("오류가 발생했습니다. 다시 시도해주세요."); }
     finally { setLoading(false); }
@@ -3071,10 +3074,16 @@ function LoginScreen({ onLogin }) {
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="이름 입력" style={inp}/>
           </div>
           {mode==="signup" && (
+            <>
             <div>
               <label style={{display:"block",fontSize:11,fontWeight:600,color:c.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>학번</label>
               <input value={studentId} onChange={e=>setSid(e.target.value)} placeholder="학번 입력" inputMode="numeric" style={inp}/>
             </div>
+            <div>
+              <label style={{display:"block",fontSize:11,fontWeight:600,color:c.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>이메일</label>
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="이메일 입력" type="email" inputMode="email" style={inp}/>
+            </div>
+            </>
           )}
           <div>
             <label style={{display:"block",fontSize:11,fontWeight:600,color:c.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.5px"}}>비밀번호</label>
@@ -3126,6 +3135,9 @@ function App() {
   const [onlineCount, setOnlineCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [showEmailPrompt, setShowEmailPrompt] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [emailErr, setEmailErr] = useState("");
   const presenceRef = useRef(null);
 
   // presence 등록
@@ -3197,13 +3209,13 @@ function App() {
     setPage("home");
     try { localStorage.setItem("msde_user", JSON.stringify(u)); } catch(e) {}
     fetchUnread(u);
-    // 알림 허용 - 로그인 시 자동 처리
-    if(!u.isAdmin && 'Notification' in window) {
+    // 이메일 없으면 이메일 팝업 먼저, 있으면 알림 팝업
+    if (!u.isAdmin && !u.email) {
+      setTimeout(()=>setShowEmailPrompt(true), 800);
+    } else if (!u.isAdmin && 'Notification' in window) {
       if(Notification.permission === 'granted') {
-        // 이미 허용된 경우 바로 토큰 등록
         setTimeout(()=>subscribePush(u.name), 1000);
       } else if(Notification.permission === 'default') {
-        // 아직 결정 안 한 경우 팝업 표시
         setTimeout(()=>setShowPushPrompt(true), 1000);
       }
     }
@@ -3248,6 +3260,51 @@ function App() {
                 setShowPushPrompt(false);
               }} style={{flex:2,padding:"12px",background:"linear-gradient(135deg,#60c0f0,#4090c0)",border:"none",borderRadius:12,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
                 🔔 알림 받기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 이메일 입력 팝업 */}
+      {showEmailPrompt && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:9998,padding:"0 0 40px"}}>
+          <div style={{background:"#141824",border:"1px solid #1e2d42",borderRadius:20,padding:"24px 20px",maxWidth:380,width:"100%"}}>
+            <div style={{fontSize:20,textAlign:"center",marginBottom:8}}>📧</div>
+            <div style={{fontSize:17,fontWeight:700,color:"#eef2ff",marginBottom:6,textAlign:"center"}}>이메일 등록</div>
+            <div style={{fontSize:13,color:"#5a6480",lineHeight:1.6,marginBottom:16,textAlign:"center"}}>
+              신원 확인 및 비밀번호 찾기를 위해<br/>이메일을 등록해주세요
+            </div>
+            <input value={emailInput} onChange={e=>{setEmailInput(e.target.value);setEmailErr("");}}
+              placeholder="이메일 입력" type="email"
+              style={{width:"100%",padding:"11px 14px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:10,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:8,fontFamily:"inherit"}}/>
+            {emailErr && <div style={{fontSize:12,color:c.error,marginBottom:8}}>⚠️ {emailErr}</div>}
+            <div style={{display:"flex",gap:10,marginTop:4}}>
+              <button onClick={()=>setShowEmailPrompt(false)}
+                style={{flex:1,padding:"12px",background:"none",border:"1px solid #1e2d42",borderRadius:12,color:"#5a6480",fontSize:14,cursor:"pointer",fontWeight:600}}>
+                나중에
+              </button>
+              <button onClick={async()=>{
+                if(!emailInput.trim()) return setEmailErr("이메일을 입력해주세요.");
+                try {
+                  await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(user.name)}.json`, {
+                    method:"PATCH", headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({email:emailInput.trim()})
+                  });
+                  const updated = {...user, email:emailInput.trim()};
+                  setUser(updated);
+                  try { localStorage.setItem("msde_user", JSON.stringify(updated)); } catch(e) {}
+                  setShowEmailPrompt(false);
+                  setEmailInput("");
+                  // 이메일 등록 후 알림 팝업
+                  if('Notification' in window && Notification.permission === 'default') {
+                    setTimeout(()=>setShowPushPrompt(true), 500);
+                  } else if('Notification' in window && Notification.permission === 'granted') {
+                    subscribePush(u.name);
+                  }
+                } catch(e) { setEmailErr("저장 중 오류가 발생했습니다."); }
+              }} style={{flex:2,padding:"12px",background:`linear-gradient(135deg,${c.piano},${c.guitar})`,border:"none",borderRadius:12,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                등록하기
               </button>
             </div>
           </div>
