@@ -83,10 +83,13 @@ async function subscribePush(userName) {
           serviceWorkerRegistration: reg
         });
         console.log('FCM token:', token);
+        const existingF = await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`).then(r=>r.json());
+        let tokens = Array.isArray(existingF) ? existingF : (existingF ? [existingF] : []);
+        if (!tokens.includes(token)) tokens.push(token);
         await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
-          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
+          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(tokens)
         });
-        console.log('FCM 토큰 저장 완료');
+        console.log('FCM 토큰 저장 완료:', tokens.length, '개');
         return true;
       } catch(e) { console.error('FCM token error:', e); }
     }
@@ -99,10 +102,17 @@ async function subscribePush(userName) {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
+      const subJson = sub.toJSON();
+      const existingV = await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`).then(r=>r.json());
+      // 기존이 배열이면 추가, 단일이면 배열로, 없으면 새로
+      let subs = Array.isArray(existingV) ? existingV : (existingV ? [existingV] : []);
+      // 동일 endpoint 중복 제거
+      subs = subs.filter(s => s.endpoint !== subJson.endpoint);
+      subs.push(subJson);
       await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
-        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(sub.toJSON())
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subs)
       });
-      console.log('VAPID 구독 저장 완료');
+      console.log('VAPID 구독 저장 완료:', subs.length, '개');
       return true;
     }
     return false;
@@ -2414,6 +2424,7 @@ function InstallGuide({ onClose }) {
           </button>
         )}
       </div>
+
     </div>
   );
 }
@@ -2501,6 +2512,7 @@ function MessagesPage({ onBack, user }) {
   const [sendImg, setSendImg]     = useState("");
   const [sending, setSending]     = useState(false);
   const [sendOk, setSendOk]       = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null); // 삭제 확인할 msg
   const [search, setSearch]       = useState("");
   const [msgTab, setMsgTab]       = useState("inbox");
   const [userSearch, setUserSearch] = useState("");
@@ -2530,6 +2542,18 @@ function MessagesPage({ onBack, user }) {
       method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({read:true})
     });
     setMessages(prev=>prev.map(m=>m.key===msg.key?{...m,read:true}:m));
+  }
+
+  function deleteMsg(msg, e) {
+    e.stopPropagation();
+    setConfirmDelete(msg);
+  }
+
+  async function doDeleteMsg() {
+    await fetch(`${FIREBASE_URL}/messages/${encodeURIComponent(user.name)}/${confirmDelete.key}.json`,{method:"DELETE"});
+    setMessages(prev=>prev.filter(m=>m.key!==confirmDelete.key));
+    if(selected?.key===confirmDelete.key) setSelected(null);
+    setConfirmDelete(null);
   }
 
   async function doSend() {
@@ -2569,6 +2593,7 @@ function MessagesPage({ onBack, user }) {
       <div style={{borderBottom:"1px solid #1e2d42",padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(180deg,#141824,#0a0d14)"}}>
         <button onClick={()=>setSelected(null)} style={{background:`${MSG_COLOR}18`,border:`1px solid ${MSG_COLOR}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:MSG_COLOR,fontSize:13,fontWeight:600}}>← 목록</button>
         <div style={{flex:1,fontSize:15,fontWeight:700,color:"#eef2ff"}}>{selected.title}</div>
+        <button onClick={(e)=>deleteMsg(selected,e)} style={{padding:"5px 12px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:8,color:c.error,cursor:"pointer",fontSize:12,fontWeight:600}}>삭제</button>
       </div>
       <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
         <div style={{fontSize:12,color:"#5a6480",marginBottom:16}}>
@@ -2669,6 +2694,7 @@ function MessagesPage({ onBack, user }) {
 
   // 일반 유저 - 받은 쪽지함 + 보내기
   return (
+    <>
     <div style={{minHeight:"100vh",background:"#0a0d14",color:"#eef2ff",fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
       {/* 헤더 */}
       <div style={{borderBottom:"1px solid #1e2d42",padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:"linear-gradient(180deg,#141824,#0a0d14)"}}>
@@ -2712,8 +2738,12 @@ function MessagesPage({ onBack, user }) {
                     style={{background:"#141824",border:`1px solid ${!msg.read?MSG_COLOR+"44":"#1e2d42"}`,borderRadius:12,padding:"14px 16px",marginBottom:8,cursor:"pointer",position:"relative",overflow:"hidden"}}>
                     {!msg.read && <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${MSG_COLOR},transparent)`}}/>}
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                      <div style={{fontSize:14,fontWeight:700,color:!msg.read?MSG_COLOR:"#eef2ff"}}>{msg.title}</div>
-                      {!msg.read && <span style={{fontSize:10,background:MSG_COLOR,color:"#0a0d14",borderRadius:10,padding:"2px 7px",fontWeight:700}}>NEW</span>}
+                      <div style={{fontSize:14,fontWeight:700,color:!msg.read?MSG_COLOR:"#eef2ff",flex:1}}>{msg.title}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        {!msg.read && <span style={{fontSize:10,background:MSG_COLOR,color:"#0a0d14",borderRadius:10,padding:"2px 7px",fontWeight:700}}>NEW</span>}
+                        <button onClick={(e)=>deleteMsg(msg,e)}
+                          style={{padding:"2px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:11,flexShrink:0}}>삭제</button>
+                      </div>
                     </div>
                     <div style={{fontSize:12,color:"#5a6480"}}>
                       {msg.from} · {new Date(msg.createdAt).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})}
@@ -2798,6 +2828,25 @@ function MessagesPage({ onBack, user }) {
         )}
       </div>
     </div>
+
+      {/* 삭제 확인 모달 */}
+      {confirmDelete && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:"0 20px"}}>
+          <div style={{background:"#141824",border:"1px solid #1e2d42",borderRadius:16,padding:"24px 20px",maxWidth:320,width:"100%"}}>
+            <div style={{fontSize:16,fontWeight:700,color:"#eef2ff",marginBottom:8,textAlign:"center"}}>쪽지 삭제</div>
+            <div style={{fontSize:13,color:"#5a6480",marginBottom:20,textAlign:"center",lineHeight:1.6}}>
+              <strong style={{color:"#eef2ff"}}>{confirmDelete.title}</strong><br/>이 쪽지를 삭제할까요?
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDelete(null)}
+                style={{flex:1,padding:"11px",background:"none",border:"1px solid #1e2d42",borderRadius:10,color:"#5a6480",cursor:"pointer",fontSize:14,fontWeight:600}}>취소</button>
+              <button onClick={doDeleteMsg}
+                style={{flex:1,padding:"11px",background:`${c.error}15`,border:`1px solid ${c.error}44`,borderRadius:10,color:c.error,cursor:"pointer",fontSize:14,fontWeight:700}}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
