@@ -264,6 +264,17 @@ async function fbDeleteBetSuggestion(key) {
 async function fbLikeBetSuggestion(key, likes) {
   await fetch(`${FIREBASE_URL}/bet_suggestions/${key}.json`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({likes}) });
 }
+async function fbVote(postKey, optionIdx, userName) {
+  // 해당 옵션의 votes 배열에 userName 추가/제거 (토글)
+  const res = await fetch(`${FIREBASE_URL}/board/${postKey}/poll/options/${optionIdx}/votes.json`);
+  const votes = await res.json() || [];
+  const arr = Array.isArray(votes) ? votes : [];
+  const newVotes = arr.includes(userName) ? arr.filter(v=>v!==userName) : [...arr, userName];
+  await fetch(`${FIREBASE_URL}/board/${postKey}/poll/options/${optionIdx}/votes.json`, {
+    method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newVotes)
+  });
+}
+
 async function fbAddReply(postKey, reply) {
   await fetch(`${FIREBASE_URL}/board/${postKey}/replies.json`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(reply) });
 }
@@ -281,6 +292,55 @@ async function fbAddNotice(s) {
 }
 async function fbDeleteNotice(fbKey) {
   await fetch(`${FIREBASE_URL}/notices/${fbKey}.json`, { method:"DELETE" });
+}
+
+// ── POLL WIDGET ──────────────────────────────────────────
+function PollWidget({ poll, postKey, currentUser, onRefresh }) {
+  const POLL_COLOR = "#60c0f0";
+  const options = poll.options || [];
+  const totalVotes = options.reduce((sum, o) => sum + (o.votes||[]).length, 0);
+  const myVoteIdx = options.findIndex(o => (o.votes||[]).includes(currentUser?.name));
+
+  async function handleVote(idx) {
+    if (!currentUser) return;
+    // 이미 다른 항목에 투표했으면 먼저 취소
+    if (myVoteIdx !== -1 && myVoteIdx !== idx) {
+      await fbVote(postKey, myVoteIdx, currentUser.name); // 기존 취소
+    }
+    await fbVote(postKey, idx, currentUser.name); // 새로 투표 or 취소
+    onRefresh();
+  }
+
+  return (
+    <div style={{background:"#0a0d1a",borderRadius:10,padding:"12px",marginBottom:10,border:`1px solid ${POLL_COLOR}33`}}>
+      <div style={{fontSize:12,color:POLL_COLOR,fontWeight:700,marginBottom:10}}>📊 투표</div>
+      {options.map((opt,i)=>{
+        const votes = (opt.votes||[]).length;
+        const pct = totalVotes > 0 ? Math.round(votes/totalVotes*100) : 0;
+        const isMine = myVoteIdx === i;
+        return (
+          <div key={i} style={{marginBottom:8}}>
+            <button onClick={()=>handleVote(i)}
+              style={{width:"100%",background:"none",border:`1px solid ${isMine?POLL_COLOR:"#1e2d42"}`,borderRadius:8,padding:0,cursor:"pointer",overflow:"hidden",textAlign:"left"}}>
+              {/* 배경 바 */}
+              <div style={{position:"relative",padding:"8px 12px"}}>
+                <div style={{position:"absolute",top:0,left:0,height:"100%",width:`${pct}%`,background:isMine?`${POLL_COLOR}30`:"#ffffff08",transition:"width 0.4s ease",borderRadius:8}}/>
+                <div style={{position:"relative",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:13,color:isMine?POLL_COLOR:"#eef2ff",fontWeight:isMine?700:400}}>
+                    {isMine?"✓ ":""}{opt.text}
+                  </span>
+                  <span style={{fontSize:12,color:isMine?POLL_COLOR:"#5a6480",fontWeight:600,marginLeft:8,flexShrink:0}}>
+                    {pct}% ({votes})
+                  </span>
+                </div>
+              </div>
+            </button>
+          </div>
+        );
+      })}
+      <div style={{fontSize:11,color:"#5a6480",marginTop:4}}>총 {totalVotes}명 참여</div>
+    </div>
+  );
 }
 
 // ── REPLYABLE POST ───────────────────────────────────────
@@ -329,6 +389,11 @@ function ReplyablePost({ s, onRefresh, setMode, setPwInput, setErr, BOARD_COLOR,
           ))}
         </div>
       )}
+      {/* 투표 UI */}
+      {s.poll && s.poll.options && (
+        <PollWidget poll={s.poll} postKey={s.fbKey} currentUser={currentUser} onRefresh={onRefresh}/>
+      )}
+
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,marginBottom:replies.length>0||showReply?10:0}}>
         <span style={{fontSize:11,color:c.muted}}>{new Date(s.createdAt).toLocaleDateString("ko-KR",{month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
         <div style={{display:"flex",gap:6}}>
@@ -407,9 +472,12 @@ function SuggestionCard({ s, onRefresh, currentUser }) {
     setErr("");
     if (s.pw && pwInput !== s.pw) return setErr("비밀번호가 틀렸습니다.");
     setLoading(true);
-    if (s.isNotice) await fbDeleteNotice(s.fbKey);
-    else await fbDeleteSuggestion(s.fbKey);
-    onRefresh();
+    try {
+      if (s.isNotice) await fbDeleteNotice(s.fbKey);
+      else await fbDeleteSuggestion(s.fbKey);
+      setMode(null);
+      onRefresh();
+    } catch(e) { setErr("삭제 중 오류가 발생했습니다."); setLoading(false); }
   }
   async function handleEdit() {
     setErr("");
@@ -1963,6 +2031,8 @@ function SuggestPage({ onBack, user }) {
 
   const [isNoticeMode, setIsNoticeMode] = useState(false);
   const [isAnon, setIsAnon]             = useState(true);
+  const [isPollMode, setIsPollMode]     = useState(false);
+  const [pollOptions, setPollOptions]   = useState(["",""]);
 
   async function submit() {
     setErr("");
@@ -1970,7 +2040,9 @@ function SuggestPage({ onBack, user }) {
     setSyncing(true);
     try {
       const displayName = user?.isAdmin ? "관리자" : (user?.name || "익명");
-      const data = { text:text.trim(), pw:pw.trim(), author:isAnon?"익명":displayName, images, createdAt:Date.now() };
+      const poll = isPollMode ? { options: pollOptions.filter(o=>o.trim()).map(o=>({text:o.trim(), votes:[]})) } : null;
+      if (isPollMode && poll.options.length < 2) return setErr("투표 항목을 2개 이상 입력해주세요.");
+      const data = { text:text.trim(), pw:pw.trim(), author:isAnon?"익명":displayName, images, poll, createdAt:Date.now() };
       if (isNoticeMode && user?.isAdmin) {
         await fbAddNotice(data);
         // 공지 푸시 전송
@@ -1985,7 +2057,7 @@ function SuggestPage({ onBack, user }) {
         await fbAddSuggestion(data);
       }
       await load(true);
-      setText(""); setPw(""); setImages([]); setIsAnon(false);
+      setText(""); setPw(""); setImages([]); setIsAnon(false); setIsPollMode(false); setPollOptions(["",""]);
       setOk(true); setTimeout(()=>setOk(false), 3000);
     } catch(e) { setErr("전송 중 오류가 발생했습니다."); }
     finally { setSyncing(false); }
@@ -2056,6 +2128,36 @@ function SuggestPage({ onBack, user }) {
           </div>
           {err && <div style={{background:"#e87e7e15",border:"1px solid #e87e7e44",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#e87e7e",marginBottom:10}}>⚠️ {err}</div>}
           {ok  && <div style={{background:"#7ec9a015",border:"1px solid #7ec9a044",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#7ec9a0",marginBottom:10}}>✅ 게시글이 등록되었습니다!</div>}
+          {/* 투표 모드 */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <button onClick={()=>{setIsPollMode(v=>!v);}}
+              style={{padding:"5px 14px",background:isPollMode?"#60c0f020":"none",border:`1px solid ${isPollMode?"#60c0f0":"#252d3d"}`,borderRadius:20,color:isPollMode?"#60c0f0":"#5a6480",cursor:"pointer",fontSize:12,fontWeight:600}}>
+              📊 {isPollMode?"투표글 모드 켜짐":"투표글로 올리기"}
+            </button>
+          </div>
+          {isPollMode && (
+            <div style={{background:"#0a0d14",borderRadius:10,padding:"12px",marginBottom:10,border:"1px solid #252d3d"}}>
+              <div style={{fontSize:12,color:"#60c0f0",fontWeight:700,marginBottom:8}}>📊 투표 항목</div>
+              {pollOptions.map((opt,i)=>(
+                <div key={i} style={{display:"flex",gap:6,marginBottom:6,alignItems:"center"}}>
+                  <input value={opt} onChange={e=>{const arr=[...pollOptions];arr[i]=e.target.value;setPollOptions(arr);}}
+                    placeholder={`항목 ${i+1}`}
+                    style={{flex:1,padding:"7px 10px",background:"#141824",border:"1px solid #252d3d",borderRadius:8,color:"#eef2ff",fontSize:13,outline:"none"}}/>
+                  {pollOptions.length>2 && (
+                    <button onClick={()=>setPollOptions(prev=>prev.filter((_,j)=>j!==i))}
+                      style={{padding:"4px 8px",background:"#e87e7e15",border:"1px solid #e87e7e33",borderRadius:6,color:"#e87e7e",cursor:"pointer",fontSize:11}}>×</button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 4 && (
+                <button onClick={()=>setPollOptions(prev=>[...prev,""])}
+                  style={{padding:"5px 12px",background:"none",border:"1px dashed #252d3d",borderRadius:8,color:"#5a6480",cursor:"pointer",fontSize:12,marginTop:2}}>
+                  + 항목 추가
+                </button>
+              )}
+            </div>
+          )}
+
           {user?.isAdmin && (
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
               <button onClick={()=>setIsNoticeMode(v=>!v)}
@@ -2066,7 +2168,7 @@ function SuggestPage({ onBack, user }) {
           )}
           <button onClick={submit} disabled={syncing}
             style={{width:"100%",padding:13,background:syncing?"#5a6480":isNoticeMode?`linear-gradient(135deg,#ffd060,#e0a040)`:`linear-gradient(135deg,${BOARD_COLOR},${BOARD_COLOR}99)`,border:"none",borderRadius:12,color:"#0a0d14",fontSize:15,fontWeight:700,cursor:syncing?"not-allowed":"pointer"}}>
-            {syncing?"등록 중...":isNoticeMode?"📌 공지글 등록":"글 등록하기"}
+            {syncing?"등록 중...":isNoticeMode?"📌 공지글 등록":isPollMode?"📊 투표글 등록":"글 등록하기"}
           </button>
         </div>
 
