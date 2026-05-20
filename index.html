@@ -86,6 +86,12 @@ async function subscribePush(userName) {
           await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
             method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
           });
+          // FCM 성공 시 VAPID 구독 제거 (중복 발송 방지)
+          try {
+            const existingSub = await reg.pushManager.getSubscription();
+            if (existingSub) await existingSub.unsubscribe();
+            await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, { method:'DELETE' });
+          } catch(_) {}
           console.log('FCM 토큰 저장 완료');
           return true;
         }
