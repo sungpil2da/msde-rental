@@ -63,11 +63,10 @@ exports.handler = async (event) => {
               token,
               notification: { title, body },
               webpush: {
-                notification: { title, body, icon: '/icon-192.png', badge: '/icon-192.png' },
                 fcm_options: { link: 'https://msderental.netlify.app' }
               },
               apns: {
-                payload: { aps: { alert: { title, body }, sound: 'default' } }
+                payload: { aps: { alert: { title, body }, sound: 'default', badge: 1 } }
               }
             }
           })
