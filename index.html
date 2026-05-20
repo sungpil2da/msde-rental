@@ -76,25 +76,22 @@ async function subscribePush(userName) {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
     if (!isIOS && window._fcmMessaging && window._fcmGetToken) {
-      // 안드로이드/데스크톱: Firebase SDK FCM 토큰
+      // 안드로이드/데스크톱: Firebase SDK FCM 토큰 (최신 1개만 저장)
       try {
         const token = await window._fcmGetToken(window._fcmMessaging, {
           vapidKey: window._fcmVapidKey,
           serviceWorkerRegistration: reg
         });
         console.log('FCM token:', token);
-        const existingF = await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`).then(r=>r.json());
-        let tokens = Array.isArray(existingF) ? existingF : (existingF ? [existingF] : []);
-        if (!tokens.includes(token)) tokens.push(token);
         await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
-          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(tokens)
+          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
         });
-        console.log('FCM 토큰 저장 완료:', tokens.length, '개');
+        console.log('FCM 토큰 저장 완료 (단일)');
         return true;
       } catch(e) { console.error('FCM token error:', e); }
     }
 
-    // iOS / FCM 실패 시: VAPID Web Push
+    // iOS: VAPID Web Push (최신 구독 1개만 저장)
     if ('PushManager' in window) {
       const existing = await reg.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
@@ -103,16 +100,10 @@ async function subscribePush(userName) {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
       const subJson = sub.toJSON();
-      const existingV = await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`).then(r=>r.json());
-      // 기존이 배열이면 추가, 단일이면 배열로, 없으면 새로
-      let subs = Array.isArray(existingV) ? existingV : (existingV ? [existingV] : []);
-      // 동일 endpoint 중복 제거
-      subs = subs.filter(s => s.endpoint !== subJson.endpoint);
-      subs.push(subJson);
       await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
-        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subs)
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subJson)
       });
-      console.log('VAPID 구독 저장 완료:', subs.length, '개');
+      console.log('VAPID 구독 저장 완료 (단일)');
       return true;
     }
     return false;
@@ -1920,7 +1911,19 @@ function AdminPanelPage({ onBack }) {
         {/* 접속중 */}
         {tab==="online" && (
           <div>
-            <div style={{fontSize:11,color:c.muted,marginBottom:12}}>현재 {onlineUsers.length}명 접속 중 (10초 기준)</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+              <div style={{fontSize:11,color:c.muted}}>현재 {onlineUsers.length}명 접속 중 (10초 기준)</div>
+              <button onClick={async()=>{
+                if(!window.confirm("접속 중인 모든 사용자를 강제 로그아웃 시킬까요?")) return;
+                await fetch(`${FIREBASE_URL}/force_logout.json`,{
+                  method:"PUT",headers:{"Content-Type":"application/json"},
+                  body:JSON.stringify({at:Date.now()})
+                });
+                showMsg("✅ 전체 강제 로그아웃 완료");
+              }} style={{padding:"6px 14px",background:"#e87e7e18",border:"1px solid #e87e7e55",borderRadius:8,color:"#e87e7e",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                🔌 전체 로그아웃
+              </button>
+            </div>
             {onlineUsers.length===0
               ? <div style={{textAlign:"center",color:c.muted,fontSize:13,padding:"40px 0"}}>
                   <div style={{fontSize:32,marginBottom:8}}>🔌</div>
@@ -5041,7 +5044,11 @@ function App() {
   const [user, setUser] = useState(()=>{
     try {
       const saved = localStorage.getItem("msde_user");
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const u = JSON.parse(saved);
+      // loginAt 없으면 0으로 → force_logout 시 항상 로그아웃됨
+      if (!u.loginAt) u.loginAt = 0;
+      return u;
     } catch(e) { return null; }
   });
   const [page, setPage_] = useState("home");
@@ -5059,6 +5066,46 @@ function App() {
   const [emailInput, setEmailInput] = useState("");
   const [emailErr, setEmailErr] = useState("");
   const presenceRef = useRef(null);
+  const userRef = useRef(null); // 항상 최신 user를 참조하기 위한 ref
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // 강제 로그아웃 체크 (앱 마운트 시 1회 등록, userRef로 최신값 참조)
+  useEffect(() => {
+    const doLogout = () => {
+      if (presenceRef.current) fetch(presenceRef.current, { method:"DELETE" });
+      setUser(null);
+      setPage_("home");
+      try { localStorage.removeItem("msde_user"); } catch(e) {}
+    };
+
+    const check = async () => {
+      const u = userRef.current;
+      if (!u || u.isAdmin) return;
+      try {
+        const res = await fetch(`${FIREBASE_URL}/force_logout.json`);
+        const data = await res.json();
+        if (data && data.at && data.at > (u.loginAt || 0)) {
+          doLogout();
+        }
+      } catch(e) {}
+    };
+
+    // 즉시 실행 + 15초 폴링
+    check();
+    const id = setInterval(check, 15000);
+
+    // 백그라운드 → 포그라운드 전환 시 즉시 체크
+    const onFocus = () => check();
+    const onVisible = () => { if (!document.hidden) check(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []); // 마운트 시 1회만 등록
 
   // presence 등록
   useEffect(() => {
@@ -5125,9 +5172,10 @@ function App() {
     } catch(e){}
   }
   function handleLogin(u) {
-    setUser(u);
+    const loginAt = Date.now();
+    setUser({...u, loginAt});
     setPage("home");
-    try { localStorage.setItem("msde_user", JSON.stringify(u)); } catch(e) {}
+    try { localStorage.setItem("msde_user", JSON.stringify({...u, loginAt})); } catch(e) {}
     fetchUnread(u);
     // 이메일 없으면 이메일 팝업 먼저, 있으면 알림 팝업
     if (!u.isAdmin && !u.email) {
@@ -5154,10 +5202,10 @@ function App() {
   if (page === "piano")   return <InstrumentPage type="piano"  onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "guitar")  return <InstrumentPage type="guitar" onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "rental")  return <RentalPage onBack={()=>setPage("instruments")} user={user}/>;
-  if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
+  if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{const merged={...u,loginAt:userRef.current?.loginAt||0};setUser(merged);try{localStorage.setItem("msde_user",JSON.stringify(merged));}catch(e){}}}/>;
   if (page === "food")       return <FoodPage onBack={()=>setPage("home")}/>;
   if (page === "messages")   return <MessagesPage onBack={()=>setPage("home")} user={user}/>;
-  if (page === "teamproject") return <TeamProjectPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
+  if (page === "teamproject") return <TeamProjectPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{const merged={...u,loginAt:userRef.current?.loginAt||0};setUser(merged);try{localStorage.setItem("msde_user",JSON.stringify(merged));}catch(e){}}}/>;
   if (page === "suggest")    return <SuggestPage onBack={()=>setPage("home")} user={user}/>;
   if (page === "adminpanel") return <AdminPanelPage onBack={()=>setPage("home")}/>;
   return (
