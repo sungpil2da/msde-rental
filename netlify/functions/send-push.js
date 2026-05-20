@@ -138,10 +138,9 @@ exports.handler = async (event) => {
           body: JSON.stringify({
             message: {
               token,
-              // notification 필드 없음 → FCM/iOS 자동 표시 없음
-              // SW의 onBackgroundMessage에서만 1번 showNotification
-              data: { title, body },
+              notification: { title, body },
               webpush: {
+                notification: { title, body, icon: '/icon-192.png', badge: '/icon-192.png' },
                 fcm_options: { link: 'https://msderental.netlify.app' }
               }
             }
