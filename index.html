@@ -4216,7 +4216,7 @@ function TeamLinksTab({ team, subject, user, TC }) {
       <div style={{marginBottom:16}}>
         <div style={{fontSize:11,color:c.muted,marginBottom:8}}>빠른 추가</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {[{name:"Teams",url:"teams.microsoft.com",icon:"💼"},{name:"Google Drive",url:"drive.google.com",icon:"📁"},{name:"Notion",url:"notion.so",icon:"📝"},{name:"GitHub",url:"github.com",icon:"💻"}].map((s,i)=>(
+          {[{name:"Teams",url:"teams.microsoft.com",icon:"💼"},{name:"Google Drive",url:"drive.google.com",icon:"📁"},{name:"Notion",url:"notion.so",icon:"📝"}].map((s,i)=>(
             <button key={i} onClick={()=>{setNewName(s.name);setNewUrl(`https://${s.url}`);}}
               style={{padding:"6px 12px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:20,color:c.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",gap:4}}>
               {s.icon} {s.name}
