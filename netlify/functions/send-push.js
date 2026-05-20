@@ -29,6 +29,7 @@ exports.handler = async (event) => {
     fetch(`${FIREBASE_URL}/push_subscriptions.json`).then(r=>r.json()),
   ]);
 
+  // 유저 필터 함수
   const filterEntries = (data) => {
     if (!data) return [];
     return targetUser
@@ -36,42 +37,92 @@ exports.handler = async (event) => {
       : Object.entries(data);
   };
 
-  const fcmEntries   = filterEntries(fcmData);
-  const vapidEntries = filterEntries(vapidData);
   let sent = 0, failed = 0;
 
+  // ── FCM (안드로이드 / 데스크톱) ──────────────────────────
+  const fcmEntries = filterEntries(fcmData);
   if (fcmEntries.length > 0) {
     const accessToken = await getAccessToken();
-    await Promise.allSettled(fcmEntries.map(async ([key, token]) => {
+
+    // 토큰이 단일 문자열이든 배열이든 모두 처리
+    const tokenList = []; // [{key, token}]
+    for (const [key, val] of fcmEntries) {
+      const tokens = Array.isArray(val) ? val : (typeof val === 'string' ? [val] : []);
+      for (const token of tokens) {
+        if (typeof token === 'string' && token.length > 10) tokenList.push({ key, token });
+      }
+    }
+
+    await Promise.allSettled(tokenList.map(async ({ key, token }) => {
       try {
         const r = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: { token, notification: { title, body },
-            webpush: { notification: { title, body, icon: '/icon-192.png' }, fcm_options: { link: 'https://msderental.netlify.app' } }
-          }})
+          body: JSON.stringify({
+            message: {
+              token,
+              notification: { title, body },
+              webpush: {
+                notification: { title, body, icon: '/icon-192.png', badge: '/icon-192.png' },
+                fcm_options: { link: 'https://msderental.netlify.app' }
+              }
+            }
+          })
         });
         const result = await r.json();
-        console.log('FCM:', JSON.stringify(result));
-        if (result.error) { failed++; if ([404,'NOT_FOUND'].includes(result.error.code||result.error.status)) await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`,{method:'DELETE'}); }
-        else sent++;
-      } catch(e) { failed++; }
+        console.log('FCM result:', JSON.stringify(result));
+        if (result.error) {
+          failed++;
+          const errCode = result.error.code || result.error.status || '';
+          // 만료/유효하지 않은 토큰은 Firebase에서 삭제
+          if (['404', 404, 'NOT_FOUND', 'UNREGISTERED'].includes(errCode)) {
+            const stored = await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`).then(r=>r.json());
+            const arr = Array.isArray(stored) ? stored : (stored ? [stored] : []);
+            const cleaned = arr.filter(t => t !== token);
+            if (cleaned.length === 0) {
+              await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`, { method:'DELETE' });
+            } else {
+              await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`, {
+                method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cleaned)
+              });
+            }
+          }
+        } else {
+          sent++;
+        }
+      } catch(e) { console.error('FCM error:', e); failed++; }
     }));
   }
 
+  // ── VAPID Web Push (iOS Safari) ───────────────────────────
+  const vapidEntries = filterEntries(vapidData);
   if (vapidEntries.length > 0) {
     const webpush = require('web-push');
     webpush.setVapidDetails('mailto:sungpil2da@naver.com', VAPID_PUBLIC, VAPID_PRIVATE);
-    await Promise.allSettled(vapidEntries.map(async ([key, sub]) => {
+
+    // 구독이 배열로 저장된 경우도 처리
+    const subList = [];
+    for (const [key, val] of vapidEntries) {
+      const subs = Array.isArray(val) ? val : (val?.endpoint ? [val] : []);
+      for (const sub of subs) {
+        if (sub?.endpoint) subList.push({ key, sub });
+      }
+    }
+
+    await Promise.allSettled(subList.map(async ({ key, sub }) => {
       try {
         await webpush.sendNotification(sub, JSON.stringify({ title, body }));
         sent++;
       } catch(e) {
+        console.error('VAPID error:', e.statusCode, e.message);
         failed++;
-        if (e.statusCode === 410) await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`,{method:'DELETE'});
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`, { method:'DELETE' });
+        }
       }
     }));
   }
 
+  console.log(`send-push done: sent=${sent} failed=${failed}`);
   return { statusCode: 200, body: JSON.stringify({ sent, failed }) };
 };
