@@ -1903,7 +1903,7 @@ function AdminPanelPage({ onBack }) {
       {/* TABS */}
       <div style={{display:"flex",background:c.bg,padding:"12px 20px 0"}}>
         <div style={{display:"flex",background:c.surface,borderRadius:10,padding:3,width:"100%",maxWidth:480,margin:"0 auto"}}>
-          {[{id:"online",label:`🟢 접속중 ${onlineUsers.length}`},{id:"users",label:"👥 회원 목록"},{id:"logs",label:"📋 활동 로그"}].map(t=>(
+          {[{id:"online",label:`🟢 접속중 ${onlineUsers.length}`},{id:"users",label:"👥 회원 목록"},{id:"logs",label:"📋 활동 로그"},{id:"pwreset",label:"🔐 비번 재설정"}].map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)}
               style={{flex:1,padding:"8px",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,transition:"all 0.2s",
                 background:tab===t.id?c.surface2:"transparent",
@@ -1989,6 +1989,10 @@ function AdminPanelPage({ onBack }) {
             }
           </div>
         )}
+
+        {/* 비번 재설정 요청 */}
+        {tab==="pwreset" && <PwResetTab showMsg={showMsg}/>}
+
       </div>
 
       {/* 탈퇴 확인 모달 */}
@@ -2017,6 +2021,81 @@ function AdminPanelPage({ onBack }) {
           {msg.text}
         </div>
       )}
+    </div>
+  );
+}
+
+function PwResetTab({ showMsg }) {
+  const AC = "#e87e7e";
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const res = await fetch(`${FIREBASE_URL}/pw_reset_requests.json`);
+    const data = await res.json() || {};
+    const arr = Object.entries(data).map(([k,v])=>({...v,key:k})).sort((a,b)=>b.requestedAt-a.requestedAt);
+    setRequests(arr); setLoading(false);
+  };
+  useEffect(()=>{ load(); },[]);
+
+  async function handleReset(req) {
+    const newPw = req.studentId.slice(-4);
+    if(!window.confirm(`${req.name}(${req.studentId}) 비밀번호를 초기화할까요?\n초기 비밀번호: ${newPw}`)) return;
+    await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(req.name)}/password.json`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newPw)
+    });
+    await fetch(`${FIREBASE_URL}/pw_reset_requests/${req.key}.json`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"done", resolvedAt:Date.now()})
+    });
+    showMsg(`✅ ${req.name} 비밀번호 초기화 완료 (${newPw})`);
+    load();
+  }
+
+  async function handleReject(req) {
+    await fetch(`${FIREBASE_URL}/pw_reset_requests/${req.key}.json`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:"rejected", resolvedAt:Date.now()})
+    });
+    showMsg(`${req.name} 요청 거절됨`);
+    load();
+  }
+
+  const STATUS = {"pending":"대기중","done":"완료","rejected":"거절"};
+  const STATUS_COLOR = {"pending":"#f0c060","done":"#a0d0a0","rejected":"#e87e7e"};
+
+  return (
+    <div>
+      {loading ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
+        : requests.length===0
+          ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>
+              <div style={{fontSize:32,marginBottom:8}}>🔐</div>요청이 없어요
+            </div>
+          : requests.map((r,i)=>(
+              <div key={i} style={{background:c.surface,border:`1px solid ${r.status==="pending"?AC+"44":c.border}`,borderRadius:12,padding:"12px 14px",marginBottom:8}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:14,fontWeight:700,color:c.text}}>{r.name}</span>
+                    <span style={{fontSize:11,background:`${STATUS_COLOR[r.status]||"#888"}20`,border:`1px solid ${STATUS_COLOR[r.status]||"#888"}44`,borderRadius:20,padding:"1px 8px",color:STATUS_COLOR[r.status]||"#888",fontWeight:700}}>{STATUS[r.status]||r.status}</span>
+                  </div>
+                  <span style={{fontSize:11,color:c.muted}}>{new Date(r.requestedAt).toLocaleDateString("ko-KR",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                </div>
+                <div style={{fontSize:12,color:c.muted,marginBottom:r.status==="pending"?8:0}}>
+                  학번: {r.studentId} · {r.email} · {r.phone}
+                </div>
+                {r.status==="pending" && (
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>handleReset(r)}
+                      style={{flex:1,padding:"7px",background:`${AC}15`,border:`1px solid ${AC}33`,borderRadius:8,color:AC,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                      비밀번호 초기화
+                    </button>
+                    <button onClick={()=>handleReject(r)}
+                      style={{flex:1,padding:"7px",background:`${c.error}10`,border:`1px solid ${c.error}22`,borderRadius:8,color:c.muted,cursor:"pointer",fontSize:12}}>
+                      거절
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+      }
     </div>
   );
 }
@@ -4322,6 +4401,7 @@ function LoginScreen({ onLogin }) {
   const [pendingUser, setPendingUser] = useState(null); // 가이드 보여줄 신규 유저
   const [showGuide, setShowGuide]     = useState(false);
   const [showFindPw, setShowFindPw]   = useState(false);
+  const [fpName, setFpName]           = useState("");
   const [fpEmail, setFpEmail]         = useState("");
   const [fpStudentId, setFpStudentId] = useState("");
   const [fpPhone, setFpPhone]         = useState("");
@@ -4340,12 +4420,12 @@ function LoginScreen({ onLogin }) {
   const inp = {width:"100%",padding:"11px 14px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:10,color:c.text,fontSize:14,outline:"none",marginBottom:0,fontFamily:"inherit"};
 
   async function handleFindPw() {
-    if(!fpEmail.trim()||!fpStudentId.trim()||!fpPhone.trim()) return setFpErr("모든 항목을 입력해주세요.");
+    if(!fpName.trim()||!fpEmail.trim()||!fpStudentId.trim()||!fpPhone.trim()) return setFpErr("모든 항목을 입력해주세요.");
     setFpLoading(true);
     try {
       await fetch(`${FIREBASE_URL}/pw_reset_requests.json`, {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ email:fpEmail.trim(), studentId:fpStudentId.trim(), phone:fpPhone.trim(), requestedAt:Date.now(), status:"pending" })
+        body:JSON.stringify({ name:fpName.trim(), email:fpEmail.trim(), studentId:fpStudentId.trim(), phone:fpPhone.trim(), requestedAt:Date.now(), status:"pending" })
       });
       setFpDone(true);
     } catch(e) { setFpErr("오류가 발생했습니다."); }
@@ -4465,7 +4545,7 @@ function LoginScreen({ onLogin }) {
 
         {/* 비밀번호 찾기 */}
         {mode==="login" && (
-          <button onClick={()=>{setShowFindPw(true);setFpDone(false);setFpErr("");setFpEmail("");setFpStudentId("");setFpPhone("");}}
+          <button onClick={()=>{setShowFindPw(true);setFpDone(false);setFpErr("");setFpName("");setFpEmail("");setFpStudentId("");setFpPhone("");}}
             style={{background:"none",border:"none",color:c.muted,fontSize:11,cursor:"pointer",marginTop:6,width:"100%",textDecoration:"underline"}}>
             비밀번호를 잊으셨나요?
           </button>
@@ -4504,6 +4584,8 @@ function LoginScreen({ onLogin }) {
               <div style={{fontSize:12,color:"#5a6480",marginBottom:16,textAlign:"center",lineHeight:1.6}}>
                 이메일, 학번, 전화번호를 입력하면<br/>관리자 승인 후 비밀번호가 초기화돼요
               </div>
+              <input value={fpName} onChange={e=>{setFpName(e.target.value);setFpErr("");}} placeholder="이름"
+                style={{width:"100%",padding:"10px 12px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:8,fontFamily:"inherit"}}/>
               <input value={fpEmail} onChange={e=>{setFpEmail(e.target.value);setFpErr("");}} placeholder="이메일" type="email"
                 style={{width:"100%",padding:"10px 12px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:8,fontFamily:"inherit"}}/>
               <input value={fpStudentId} onChange={e=>{setFpStudentId(e.target.value);setFpErr("");}} placeholder="학번" inputMode="numeric"
