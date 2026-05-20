@@ -2225,75 +2225,89 @@ function SuggestPage({ onBack, user }) {
 // ── FOOD PAGE ────────────────────────────────────────────
 const FOOD_COLOR = "#f0a060";
 const RESTAURANTS = [
-  // 라멘
-  { name:"쇼지키",                category:"🍜 라멘",       desc:"일식 라멘·덮밥 전문점", link:"https://naver.me/5Kq9NvFm" },
-  { name:"기린라멘",              category:"🍜 라멘",       desc:"진한 돈코츠 국물, 공릉 대표 라멘 맛집", link:"https://naver.me/xdpFYrJP" },
-  { name:"수유라멘",              category:"🍜 라멘",       desc:"깔끔한 스타일의 라멘 전문점", link:"https://naver.me/5747MNFV" },
-  { name:"봉평산골메밀촌",        category:"🍝 면",         desc:"메밀 막국수, 냉면, 메밀전병", link:"https://naver.me/5LHGO6w3" },
-  // 닭
-  { name:"닭도리로",              category:"🍗 닭",         desc:"닭볶음탕·닭요리 전문 한식당", link:"https://naver.me/x67H897b" },
-  { name:"내가찜한닭",            category:"🍗 닭",         desc:"달콤짭조름한 찜닭 전문점", link:"https://naver.me/5fImV7vY" },
-  { name:"맛닭꼬치킨",            category:"🍗 닭",         desc:"치킨, 닭강정 전문점", link:"https://naver.me/5apQ6SOZ" },
-  { name:"호치킨",                category:"🍗 닭",         desc:"바삭한 튀김 치킨 전문점", link:"https://naver.me/GsjIag3Y" },
-  { name:"지동닭갈비",            category:"🍗 닭",         desc:"춘천식 매콤한 닭갈비 전문점", link:"https://naver.me/FgHItuY3" },
-  { name:"닭한마리",              category:"🍗 닭",         desc:"육수에 닭을 통째로 끓이는 닭한마리 전문", link:"https://naver.me/Fuz5e6Vh" },
-  // 샤브·곱창·기타
-  { name:"미랑샤브",              category:"🍲 국물",       desc:"샤브샤브 전문점", link:"https://naver.me/Fnm02olO" },
-  { name:"원조이모네연탄불곱창",  category:"🍚 한식",       desc:"소금구이막창 단일메뉴", link:"https://naver.me/5PVa0i0a" },
-  // 분식
-  { name:"동대문엽기떡볶이",      category:"🌶️ 분식",      desc:"엽기 떡볶이 전문점", link:"https://naver.me/x3j2IINi" },
-  // 샐러드
-  { name:"프레퍼스",              category:"🥗 샐러드",     desc:"다이어트, 샐러드 전문점", link:"https://naver.me/GyphJePk" },
   // 학식
-  { name:"테크노파크",            category:"🏫 학식",       desc:"매일 달라지는 메뉴 · 식단표: seoultp.or.kr", link:"https://www.seoultp.or.kr/user/nd70791.do" },
-  { name:"1학생회관 (ST:Table)",  category:"🏫 학식",       desc:"학생회관 1층 식당 메뉴판", link:"https://fern-magic-bde.notion.site/21e45244ac0a80fdb02ad064ce75d674" },
-  { name:"2학생회관 (ST:Dining)", category:"🏫 학식",       desc:"학생회관 2층 식당 메뉴판", link:"https://fern-magic-bde.notion.site/21e45244ac0a80fdb02ad064ce75d674" },
-  // 한식
-  { name:"밥은화",                category:"🍚 한식",       desc:"집밥 스타일의 한식 정식 전문점", link:"https://naver.me/GJT9SJfK" },
-  { name:"아침점심저녁",          category:"🍚 한식",       desc:"푸짐한 한식 백반 전문점", link:"https://naver.me/xxYVnrDo" },
-  { name:"동일옥",                category:"🍝 면",         desc:"칼국수·냉면 등 면 요리 전문점", link:"https://naver.me/GalHcg4O" },
-  { name:"찬이네곱창",            category:"🍚 한식",       desc:"신선한 곱창·대창 전골 전문점", link:"https://naver.me/GubjctAg" },
-  { name:"김치만선생",            category:"🍚 한식",       desc:"김치찌개 전문, 묵은지 김치찌개 맛집", link:"https://naver.me/FmfSKRil" },
-  { name:"세겹먹는날",            category:"🍚 한식",       desc:"두툼한 삼겹살 전문 고기집", link:"https://naver.me/5qD7Z9fV" },
-  { name:"궁안뜰",                category:"🍚 한식",       desc:"두툼한 삼겹살 전문 고기집", link:"https://naver.me/Fy2mr51s" },
-  { name:"뭉탱이 공릉숯불생고기", category:"🍚 한식",       desc:"숯불향 가득한 생고기 전문 고기집", link:"https://naver.me/GL8iY6mp" },
-  { name:"보람",                  category:"🍚 한식",       desc:"장어덮밥 전문점", link:"https://naver.me/53lKPtKA" },
-  { name:"쭈꾸미도사",            category:"🍚 한식",       desc:"매콤한 쭈꾸미볶음 전문점", link:"https://naver.me/53lKPtKA" },
+  { name:"테크노파크",              category:"🏫 학식",         desc:"매일 달라지는 메뉴 · 식단표: seoultp.or.kr", link:"https://www.seoultp.or.kr/user/nd70791.do" },
+  { name:"1학생회관 (ST:Table)",    category:"🏫 학식",         desc:"학생회관 1층 식당 메뉴판", link:"https://fern-magic-bde.notion.site/21e45244ac0a80fdb02ad064ce75d674" },
+  { name:"2학생회관 (ST:Dining)",   category:"🏫 학식",         desc:"학생회관 2층 식당 메뉴판", link:"https://fern-magic-bde.notion.site/21e45244ac0a80fdb02ad064ce75d674" },
+  // 고기
+  { name:"원조이모네연탄불곱창",    category:"🥩 고기",         desc:"소금구이막창 단일메뉴", link:"https://naver.me/5PVa0i0a" },
+  { name:"찬이네곱창",              category:"🥩 고기",         desc:"신선한 곱창·대창 전골 전문점", link:"https://naver.me/GubjctAg" },
+  { name:"세겹먹는날",              category:"🥩 고기",         desc:"두툼한 삼겹살 전문 고기집", link:"https://naver.me/5qD7Z9fV" },
+  { name:"궁안뜰",                  category:"🥩 고기",         desc:"삼겹살 전문 고기집", link:"https://naver.me/Fy2mr51s" },
+  { name:"뭉탱이 공릉숯불생고기",   category:"🥩 고기",         desc:"숯불향 가득한 생고기 전문 고기집", link:"https://naver.me/GL8iY6mp" },
+  { name:"쭈꾸미도사",              category:"🥩 고기",         desc:"매콤한 쭈꾸미볶음 전문점", link:"https://naver.me/53lKPtKA" },
+  { name:"고기싸롱",                category:"🥩 고기",         desc:"돼지고기 무한리필", link:"https://naver.me/xyd8P0ly" },
+  { name:"육채파",                  category:"🥩 고기",         desc:"대패/월남쌈/샤브샤브 무한리필", link:"https://naver.me/53lK0OrE" },
+  { name:"엉터리 무한대패",         category:"🥩 고기",         desc:"24시간 돼지고기 무한리필", link:"https://naver.me/x0UsTkpS" },
+  { name:"The 맛나곱창",            category:"🥩 고기",         desc:"8천원 가성비 곱창", link:"https://naver.me/x8tLhf3a" },
+  { name:"기찻길풍경 야채곱창",     category:"🥩 고기",         desc:"알곱+야곱 추천", link:"https://naver.me/FtTheWui" },
+  { name:"초원갈비",                category:"🥩 고기",         desc:"제육볶음 맛집 + 밑반찬 goat", link:"https://naver.me/5k7iapLG" },
+  { name:"춘천닭갈비",              category:"🥩 고기",         desc:"닭갈비 전문점", link:"https://naver.me/5fIpMo5m" },
+  // 덮밥
+  { name:"밥은화",                  category:"🍱 덮밥",         desc:"집밥 스타일의 한식 정식 전문점", link:"https://naver.me/GJT9SJfK" },
+  { name:"아침점심저녁",            category:"🍱 덮밥",         desc:"푸짐한 한식 백반 전문점", link:"https://naver.me/xxYVnrDo" },
+  { name:"보람",                    category:"🍱 덮밥",         desc:"장어덮밥 전문점", link:"https://naver.me/53lKPtKA" },
+  { name:"일상다반",                category:"🍱 덮밥",         desc:"일본 가정식 스타일 덮밥 전문점", link:"https://naver.me/5hulgAz6" },
+  { name:"광주한양식당",            category:"🍱 덮밥",         desc:"백반집", link:"https://naver.me/xprI5GyC" },
+  { name:"생선까시",                category:"🍱 덮밥",         desc:"생선백반 전문점", link:"https://naver.me/5T4C1iD2" },
+  { name:"비젼식당",                category:"🍱 덮밥",         desc:"백반집", link:"https://naver.me/FeXnddMr" },
   // 국물
-  { name:"서울감자탕",            category:"🍲 국물",       desc:"뼈가 쫙 빠지는 진한 감자탕", link:"https://naver.me/G0DWvNWR" },
-  { name:"참맛감자탕",            category:"🍲 국물",       desc:"진한 국물의 뼈해장국·감자탕", link:"https://naver.me/FUhsktKD" },
-  { name:"무봉리 토종순대국",     category:"🍲 국물",       desc:"토종 재료로 만든 구수한 순대국밥", link:"https://naver.me/5l7kuEg1" },
-  { name:"이정림 수제햄 부대찌개",category:"🍲 국물",       desc:"수제햄이 들어간 얼큰한 부대찌개", link:"https://naver.me/5PVaTwic" },
-  { name:"공릉순두부",            category:"🍲 국물",       desc:"부드러운 순두부찌개 전문 한식당", link:"https://naver.me/xDJXM17J" },
-  // 돈가스
-  { name:"서울왕돈가스",          category:"🍛 돈가스",     desc:"바삭한 수제 왕돈가스 전문점", link:"https://naver.me/FnmdLGZo" },
-  { name:"숲속왕돈까스",          category:"🍛 돈가스",     desc:"두툼한 왕돈가스가 시그니처", link:"https://naver.me/FhUVHpWA" },
+  { name:"미랑샤브",                category:"🍲 국물",         desc:"샤브샤브 무한리필", link:"https://naver.me/Fnm02olO" },
+  { name:"김치만선생",              category:"🍲 국물",         desc:"김치찌개 전문, 묵은지 김치찌개 맛집", link:"https://naver.me/FmfSKRil" },
+  { name:"서울감자탕",              category:"🍲 국물",         desc:"뼈가 쫙 빠지는 진한 감자탕", link:"https://naver.me/G0DWvNWR" },
+  { name:"참맛감자탕",              category:"🍲 국물",         desc:"진한 국물의 뼈해장국·감자탕", link:"https://naver.me/FUhsktKD" },
+  { name:"무봉리 토종순대국",       category:"🍲 국물",         desc:"토종 재료로 만든 구수한 순대국밥", link:"https://naver.me/5l7kuEg1" },
+  { name:"이정림 수제햄 부대찌개",  category:"🍲 국물",         desc:"수제햄이 들어간 얼큰한 부대찌개", link:"https://naver.me/5PVaTwic" },
+  { name:"공릉순두부",              category:"🍲 국물",         desc:"부드러운 순두부찌개 전문 한식당", link:"https://naver.me/xDJXM17J" },
+  { name:"압구정 찌개마을",         category:"🍲 국물",         desc:"김치찌개 전문점", link:"https://naver.me/5Kb3Yy0W" },
+  { name:"온달네",                  category:"🍲 국물",         desc:"칼국수, 냉면, 만두, 보쌈", link:"https://naver.me/GQ15zO4I" },
+  // 돈가스·튀김
+  { name:"서울왕돈가스",            category:"🍛 돈가스·튀김",  desc:"바삭한 수제 왕돈가스 전문점", link:"https://naver.me/FnmdLGZo" },
+  { name:"숲속왕돈까스",            category:"🍛 돈가스·튀김",  desc:"두툼한 왕돈가스가 시그니처", link:"https://naver.me/FhUVHpWA" },
+  { name:"네코정",                  category:"🍛 돈가스·튀김",  desc:"바삭한 튀김덮밥(텐동) 전문점", link:"https://naver.me/GPdoHb9j" },
+  { name:"휴돈정",                  category:"🍛 돈가스·튀김",  desc:"공릉역 돈카츠 맛집", link:"https://naver.me/GYC9USbw" },
   // 중식
-  { name:"중국집",                category:"🥡 중식",       desc:"짜장면·짬뽕·탕수육 중화요리", link:"https://naver.me/5yPnrEqQ" },
-  { name:"왕짜장",                category:"🥡 중식",       desc:"큼직한 재료가 가득한 왕짜장 전문", link:"https://naver.me/GDQNDxVN" },
-  { name:"공덕관",                category:"🥡 중식",       desc:"공릉동 중화요리 전문점", link:"https://naver.me/xjgcS2j2" },
-  { name:"친타오",                category:"🥡 중식",       desc:"공릉동 중화요리 전문점", link:"https://naver.me/F0zW1ogj" },
+  { name:"중국집",                  category:"🥡 중식",         desc:"짜장면·짬뽕·탕수육 중화요리", link:"https://naver.me/5yPnrEqQ" },
+  { name:"왕짜장",                  category:"🥡 중식",         desc:"큼직한 재료가 가득한 왕짜장 전문", link:"https://naver.me/GDQNDxVN" },
+  { name:"공덕관",                  category:"🥡 중식",         desc:"공릉동 중화요리 전문점", link:"https://naver.me/xjgcS2j2" },
+  { name:"친타오",                  category:"🥡 중식",         desc:"공릉동 중화요리 전문점", link:"https://naver.me/F0zW1ogj" },
   // 마라탕
-  { name:"샹츠마라",              category:"🍜 마라탕",     desc:"마라탕·마라샹궈 전문점", link:"https://naver.me/57VWKGPX" },
-  { name:"춘리마라탕",            category:"🍜 마라탕",     desc:"마라탕 전문점", link:"https://naver.me/G4WbcJOa" },
-  { name:"탕화쿵푸마라탕",        category:"🍜 마라탕",     desc:"마라탕·훠궈 전문 체인점", link:"https://naver.me/FZ2MKxWC" },
-  // 분식
-  { name:"쪼매매운떡볶이",        category:"🌶️ 분식",      desc:"쫄깃한 떡볶이, 매운맛 조절 가능", link:"https://naver.me/xWTn22d7" },
-  { name:"김밥천국",              category:"🌶️ 분식",      desc:"김밥·라면·볶음밥 등 다양한 분식", link:"https://naver.me/5chpeVxV" },
-  { name:"이삭토스트",            category:"🌶️ 분식",      desc:"달걀 가득한 이삭표 토스트, 빠른 한끼", link:"https://naver.me/GCv8ya8y" },
-  // 회·해산물
-  { name:"육회왕자 연어공주",     category:"🐟 회·해산물",  desc:"신선한 육회와 연어, 해산물 전문점", link:"https://naver.me/GJTg5fqy" },
-  { name:"공릉회수산",            category:"🐟 회·해산물",  desc:"싱싱한 활어회 전문 수산물 식당", link:"https://naver.me/G38614ri" },
-  // 피자·양식
-  { name:"핏짜굽는 언니",         category:"🍕 피자·양식",  desc:"화덕피자·파스타, 공릉 분위기 맛집", link:"https://naver.me/IGJyYbjh" },
-  { name:"써브웨이",              category:"🍔 패스트푸드", desc:"신선한 재료로 만드는 맞춤 샌드위치", link:"https://naver.me/FA2FVRGP" },
-  { name:"서오릉피자",            category:"🍕 피자·양식",  desc:"공릉동 피자 전문점", link:"https://naver.me/GMmgljlO" },
+  { name:"샹츠마라",                category:"🍜 마라탕",       desc:"마라탕·마라샹궈 전문점", link:"https://naver.me/57VWKGPX" },
+  { name:"춘리마라탕",              category:"🍜 마라탕",       desc:"마라탕 전문점", link:"https://naver.me/G4WbcJOa" },
+  { name:"탕화쿵푸마라탕",          category:"🍜 마라탕",       desc:"마라탕·훠궈 전문 체인점", link:"https://naver.me/FZ2MKxWC" },
   // 패스트푸드
-  { name:"맥도날드",              category:"🍔 패스트푸드", desc:"빅맥·맥너겟·맥플러리", link:"https://naver.me/G0DWfP8v" },
-  { name:"맘스터치",              category:"🍔 패스트푸드", desc:"싸이버거로 유명한 국산 버거 프랜차이즈", link:"https://naver.me/FbO07zOL" },
-  // 일식
-  { name:"일상다반",              category:"🍣 일식",       desc:"일본 가정식 스타일의 일식 전문점", link:"https://naver.me/5hulgAz6" },
-  { name:"네코정",                category:"🍣 일식",       desc:"바삭한 튀김덮밥(텐동) 전문 일식당", link:"https://naver.me/GPdoHb9j" },
+  { name:"맥도날드",                category:"🍔 패스트푸드",   desc:"빅맥·맥너겟·맥플러리", link:"https://naver.me/G0DWfP8v" },
+  { name:"맘스터치",                category:"🍔 패스트푸드",   desc:"싸이버거로 유명한 국산 버거 프랜차이즈", link:"https://naver.me/FbO07zOL" },
+  { name:"써브웨이",                category:"🍔 패스트푸드",   desc:"신선한 재료로 만드는 맞춤 샌드위치", link:"https://naver.me/FA2FVRGP" },
+  // 닭
+  { name:"닭도리로",                category:"🍗 닭",           desc:"닭볶음탕·닭요리 전문 한식당", link:"https://naver.me/x67H897b" },
+  { name:"내가찜한닭",              category:"🍗 닭",           desc:"달콤짭조름한 찜닭 전문점", link:"https://naver.me/5fImV7vY" },
+  { name:"맛닭꼬치킨",              category:"🍗 닭",           desc:"치킨, 닭강정 전문점", link:"https://naver.me/5apQ6SOZ" },
+  { name:"호치킨",                  category:"🍗 닭",           desc:"바삭한 튀김 치킨 전문점", link:"https://naver.me/GsjIag3Y" },
+  { name:"지동닭갈비",              category:"🍗 닭",           desc:"춘천식 매콤한 닭갈비 전문점", link:"https://naver.me/FgHItuY3" },
+  { name:"닭한마리",                category:"🍗 닭",           desc:"육수에 닭을 통째로 끓이는 닭한마리 전문", link:"https://naver.me/Fuz5e6Vh" },
+  // 라멘·면
+  { name:"쇼지키",                  category:"🍜 라멘",         desc:"일식 라멘·덮밥 전문점", link:"https://naver.me/5Kq9NvFm" },
+  { name:"기린라멘",                category:"🍜 라멘",         desc:"진한 돈코츠 국물, 공릉 대표 라멘 맛집", link:"https://naver.me/xdpFYrJP" },
+  { name:"수유라멘",                category:"🍜 라멘",         desc:"깔끔한 스타일의 라멘 전문점", link:"https://naver.me/5747MNFV" },
+  { name:"봉평산골메밀촌",          category:"🍝 면",           desc:"메밀 막국수, 냉면, 메밀전병", link:"https://naver.me/5LHGO6w3" },
+  { name:"동일옥",                  category:"🍝 면",           desc:"칼국수·냉면 등 면 요리 전문점", link:"https://naver.me/GalHcg4O" },
+  { name:"신가네 칼국수",           category:"🍝 면",           desc:"칼국수 전문점", link:"https://naver.me/FA2x1WOg" },
+  // 분식
+  { name:"동대문엽기떡볶이",        category:"🌶️ 분식",        desc:"엽기 떡볶이 전문점", link:"https://naver.me/x3j2IINi" },
+  { name:"쪼매매운떡볶이",          category:"🌶️ 분식",        desc:"쫄깃한 떡볶이, 매운맛 조절 가능", link:"https://naver.me/xWTn22d7" },
+  { name:"김밥천국",                category:"🌶️ 분식",        desc:"김밥·라면·볶음밥 등 다양한 분식", link:"https://naver.me/5chpeVxV" },
+  { name:"이삭토스트",              category:"🌶️ 분식",        desc:"달걀 가득한 이삭표 토스트, 빠른 한끼", link:"https://naver.me/GCv8ya8y" },
+  { name:"공릉우동집",              category:"🌶️ 분식",        desc:"가성비 분식집", link:"https://naver.me/xIeXwcS2" },
+  // 샐러드
+  { name:"프레퍼스",                category:"🥗 샐러드",       desc:"다이어트, 샐러드 전문점", link:"https://naver.me/GyphJePk" },
+  // 회·해산물
+  { name:"육회왕자 연어공주",       category:"🐟 회·해산물",    desc:"신선한 육회와 연어, 해산물 전문점", link:"https://naver.me/GJTg5fqy" },
+  { name:"공릉회수산",              category:"🐟 회·해산물",    desc:"싱싱한 활어회 전문 수산물 식당", link:"https://naver.me/G38614ri" },
+  // 피자·양식
+  { name:"핏짜굽는 언니",           category:"🍕 피자·양식",    desc:"화덕피자·파스타, 공릉 분위기 맛집", link:"https://naver.me/IGJyYbjh" },
+  { name:"서오릉피자",              category:"🍕 피자·양식",    desc:"공릉동 피자 전문점", link:"https://naver.me/GMmgljlO" },
+  { name:"디에트로",                category:"🍕 피자·양식",    desc:"분위기 대박 양식집", link:"https://naver.me/5du4PeTU" },
 ];
 
 function FoodPage({ onBack }) {
@@ -2385,7 +2399,7 @@ function FoodPage({ onBack }) {
 
         {/* 카테고리 필터 */}
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-          {["전체","🏫 학식","🍚 한식","🍲 국물","🍛 돈가스","🥡 중식","🍜 마라탕","🍔 패스트푸드","🍗 닭","🍜 라멘","🍝 면","🌶️ 분식","🥗 샐러드","🐟 회·해산물","🍕 피자·양식","🍣 일식"].map(cat=>(
+          {["전체","🏫 학식","🥩 고기","🍱 덮밥","🍲 국물","🍛 돈가스·튀김","🥡 중식","🍜 마라탕","🍔 패스트푸드","🍗 닭","🍜 라멘","🍝 면","🌶️ 분식","🥗 샐러드","🐟 회·해산물","🍕 피자·양식"].map(cat=>(
             <button key={cat} onClick={()=>setFilter(cat)}
               style={{fontSize:11,padding:"4px 10px",borderRadius:20,border:`1px solid ${filter===cat?FOOD_COLOR:"#1e2d42"}`,background:filter===cat?`${FOOD_COLOR}18`:"none",color:filter===cat?FOOD_COLOR:"#5a6480",cursor:"pointer",whiteSpace:"nowrap"}}>
               {cat}
@@ -2971,6 +2985,1088 @@ function MessagesPage({ onBack, user }) {
   );
 }
 
+// ── SCHEDULE SHARE TAB ───────────────────────────────────
+const WEEK_DAYS = ["월","화","수","목","금","토","일"];
+const CLASS_PERIODS = Array.from({length:24},(_,i)=>i);
+const PERIOD_TIMES = Object.fromEntries(Array.from({length:24},(_,i)=>[i, `${String(i).padStart(2,"0")}:00`]));
+
+function ScheduleShareTab({ grade, user, TC }) {
+  const [scheduleMap, setScheduleMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [mySlots, setMySlots] = useState({});
+
+  // 주 선택: 0=이번주, 1=다음주, -1=저번주 등
+  const getWeekStart = (offset=0) => {
+    const d = new Date();
+    const day = d.getDay();
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
+    return mon.toISOString().slice(0,10);
+  };
+  const [weekOffset, setWeekOffset] = useState(0);
+  const weekStart = getWeekStart(weekOffset);
+
+  // 주의 월~일 날짜 계산
+  const getWeekDates = () => {
+    const dates = [];
+    const mon = new Date(weekStart);
+    for(let i=0;i<7;i++) {
+      const d = new Date(mon);
+      d.setDate(mon.getDate()+i);
+      dates.push(d);
+    }
+    return dates;
+  };
+  const weekDates = getWeekDates();
+  const formatDate = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+
+  const fbKey = `schedules_grade${grade}_${weekStart}`;
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/${fbKey}.json`);
+      const data = await res.json() || {};
+      setScheduleMap(data);
+      setMySlots(data[user.name] || {});
+    } catch(e) {}
+    finally { setLoading(false); }
+  }, [grade]);
+
+  useEffect(()=>{ load(); }, []);
+
+  async function toggleSlot(day, period) {
+    const key = `${day}_${period}`;
+    const newSlots = {...mySlots, [key]: !mySlots[key]};
+    if (!newSlots[key]) delete newSlots[key];
+    setMySlots(newSlots);
+    setScheduleMap(prev=>({...prev, [user.name]: newSlots}));
+    await fetch(`${FIREBASE_URL}/${fbKey}/${encodeURIComponent(user.name)}.json`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newSlots)
+    });
+  }
+
+  // 해당 슬롯에 있는 사람 목록
+  const getSlotUsers = (day, period) => {
+    const key = `${day}_${period}`;
+    return Object.entries(scheduleMap).filter(([n,slots])=>slots[key]).map(([n])=>n);
+  };
+
+  const allUsers = Object.keys(scheduleMap);
+  const totalUsers = allUsers.length;
+
+  // 색상: 내가 있으면 초록, 겹치는 사람 많을수록 진하게
+  const getSlotStyle = (day, period) => {
+    const key = `${day}_${period}`;
+    const isMine = !!mySlots[key];
+    const slotUsers = getSlotUsers(day, period);
+    const count = slotUsers.length;
+    if (count === 0) return { bg: c.surface, border: c.border, text: c.muted };
+    if (isMine && count === 1) return { bg: `${TC}30`, border: TC, text: TC };
+    const intensity = Math.min(count / Math.max(totalUsers, 1), 1);
+    const alpha = Math.round(20 + intensity * 60).toString(16).padStart(2,'0');
+    if (isMine) return { bg: `${TC}${alpha}`, border: TC, text: TC };
+    return { bg: `#60c0f0${alpha}`, border: `#60c0f088`, text: "#60c0f0" };
+  };
+
+  const CELL_W = 40;
+  const CELL_H = 32;
+
+  if (loading) return <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>;
+
+  return (
+    <div style={{paddingBottom:40}}>
+      {/* 주 선택 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${c.border}`}}>
+        <button onClick={()=>setWeekOffset(w=>w-1)}
+          style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>‹ 이전</button>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:13,fontWeight:700,color:TC}}>
+            {formatDate(weekDates[0])} ~ {formatDate(weekDates[6])}
+          </div>
+          <div style={{fontSize:11,color:c.muted}}>
+            {weekOffset===0?"이번 주":weekOffset===1?"다음 주":weekOffset===-1?"지난 주":`${weekOffset>0?"+":""}${weekOffset}주`}
+          </div>
+        </div>
+        <button onClick={()=>setWeekOffset(w=>w+1)}
+          style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>다음 ›</button>
+      </div>
+
+      {/* 범례 */}
+      <div style={{display:"flex",gap:12,padding:"12px 16px",alignItems:"center",fontSize:11,color:c.muted,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:12,height:12,borderRadius:2,background:`${TC}50`,border:`1px solid ${TC}`}}/> 내 가능 시간</div>
+        <div style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:12,height:12,borderRadius:2,background:"#60c0f040",border:"1px solid #60c0f088"}}/> 다른 사람</div>
+        <div style={{marginLeft:"auto",color:TC,fontWeight:600}}>{totalUsers}명 참여 중</div>
+      </div>
+
+      {/* 시간표 그리드 */}
+      <div style={{overflowX:"auto",padding:"0 8px"}}>
+        <div style={{display:"inline-block",minWidth:"100%"}}>
+          {/* 헤더 */}
+          <div style={{display:"flex",marginBottom:2}}>
+            <div style={{width:44,flexShrink:0}}/>
+            {weekDates.map((d,i)=>(
+              <div key={i} style={{width:CELL_W,textAlign:"center",flexShrink:0,marginLeft:1,marginRight:1}}>
+                <div style={{fontSize:10,fontWeight:700,color:c.muted}}>{WEEK_DAYS[i]}</div>
+                <div style={{fontSize:9,color:c.muted}}>{formatDate(d)}</div>
+              </div>
+            ))}
+          </div>
+          {/* 행 */}
+          {CLASS_PERIODS.map(p=>(
+            <div key={p} style={{display:"flex",marginBottom:2,alignItems:"center"}}>
+              <div style={{width:44,fontSize:10,color:c.muted,textAlign:"right",paddingRight:6,flexShrink:0,lineHeight:1}}>{PERIOD_TIMES[p]}</div>
+              {WEEK_DAYS.map(d=>{
+                const st = getSlotStyle(d,p);
+                const slotUsers = getSlotUsers(d,p);
+                const isMine = !!mySlots[`${d}_${p}`];
+                return (
+                  <div key={d} onClick={()=>toggleSlot(d,p)}
+                    title={slotUsers.join(", ")||""}
+                    style={{
+                      width:CELL_W, height:CELL_H, flexShrink:0, cursor:"pointer",
+                      background:st.bg, border:`1px solid ${st.border}`,
+                      borderRadius:4, margin:"0 1px",
+                      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                      transition:"all 0.15s", position:"relative"
+                    }}>
+                    {slotUsers.length>0 && (
+                      <span style={{fontSize:9,color:st.text,fontWeight:700,lineHeight:1.2,textAlign:"center"}}>
+                        {slotUsers.length}명
+                      </span>
+                    )}
+                    {isMine && <span style={{fontSize:8,color:TC,opacity:0.8}}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 참여자 목록 */}
+      {totalUsers > 0 && (
+        <div style={{padding:"12px 16px",marginTop:8}}>
+          <div style={{fontSize:11,color:c.muted,fontWeight:700,marginBottom:8}}>참여자</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {allUsers.map((name,i)=>(
+              <div key={i} style={{fontSize:11,background:name===user.name?`${TC}20`:`#60c0f015`,border:`1px solid ${name===user.name?TC:"#60c0f033"}`,borderRadius:20,padding:"3px 10px",color:name===user.name?TC:"#60c0f0"}}>
+                {name}{name===user.name?" (나)":""}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{padding:"0 16px",marginTop:4}}>
+        <p style={{fontSize:11,color:c.muted,margin:0}}>💡 슬롯을 클릭해서 가능한 시간을 표시해요</p>
+      </div>
+    </div>
+  );
+}
+
+// ── MY SCHEDULE TAB ──────────────────────────────────────
+function MyScheduleTab({ grade, user, TC }) {
+  const [scheduleData, setScheduleData] = useState({}); // {"월_0": {title, memo, color}}
+  const [weekOffset, setWeekOffset]     = useState(0);
+  const [selectedSlot, setSelectedSlot] = useState(null); // {day, hour, key}
+  const [selectedSlots, setSelectedSlots] = useState([]); // 다중 선택
+  const [inputTitle, setInputTitle]     = useState("");
+  const [inputMemo, setInputMemo]       = useState("");
+  const [loading, setLoading]           = useState(true);
+  // 드래그 상태
+  const [isDragging, setIsDragging]     = useState(false);
+  const [dragDay, setDragDay]           = useState(null);
+  const [dragStartH, setDragStartH]     = useState(null);
+  const [dragEndH, setDragEndH]         = useState(null);
+
+  const SLOT_COLORS = ["#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070"];
+
+  const getWeekStart = (offset=0) => {
+    const d = new Date();
+    const day = d.getDay();
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
+    return mon.toISOString().slice(0,10);
+  };
+  const weekStart = getWeekStart(weekOffset);
+
+  const getWeekDates = () => {
+    const dates = [];
+    const mon = new Date(weekStart);
+    for(let i=0;i<7;i++) {
+      const d = new Date(mon);
+      d.setDate(mon.getDate()+i);
+      dates.push(d);
+    }
+    return dates;
+  };
+  const weekDates = getWeekDates();
+  const formatDate = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+
+  const fbPath = `my_schedules/${encodeURIComponent(user.name)}/week_${weekStart}`;
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${FIREBASE_URL}/${fbPath}.json`);
+      const data = await res.json() || {};
+      setScheduleData(data);
+    } catch(e) {}
+    finally { setLoading(false); }
+  };
+
+  useEffect(()=>{ load(); }, [weekOffset]);
+
+  async function saveSlot() {
+    if(!inputTitle.trim()) return;
+    const colorIdx = Object.keys(scheduleData).length % SLOT_COLORS.length;
+    const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:SLOT_COLORS[colorIdx] };
+    const slots = selectedSlots.length > 0 ? selectedSlots : [selectedSlot];
+    const newData = {...scheduleData};
+    const updates = [];
+    for(const slot of slots) {
+      newData[slot.key] = newEntry;
+      updates.push(fetch(`${FIREBASE_URL}/${fbPath}/${slot.key}.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newEntry)
+      }));
+    }
+    setScheduleData(newData);
+    setSelectedSlot(null); setSelectedSlots([]); setInputTitle(""); setInputMemo("");
+    await Promise.all(updates);
+  }
+
+  async function deleteSlot(key) {
+    const slots = selectedSlots.length > 0 ? selectedSlots : [{key}];
+    const newData = {...scheduleData};
+    const updates = [];
+    for(const slot of slots) {
+      delete newData[slot.key];
+      updates.push(fetch(`${FIREBASE_URL}/${fbPath}/${slot.key}.json`, {method:"DELETE"}));
+    }
+    setScheduleData(newData);
+    setSelectedSlot(null); setSelectedSlots([]); setInputTitle(""); setInputMemo("");
+    await Promise.all(updates);
+  }
+
+  const CELL_W = 52;
+  const CELL_H = 34;
+  const LABEL_W = 46;
+
+  return (
+    <div style={{paddingBottom:60}}>
+      {/* 주 선택 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${c.border}`}}>
+        <button onClick={()=>setWeekOffset(w=>w-1)}
+          style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>‹ 이전</button>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:13,fontWeight:700,color:TC}}>
+            {formatDate(weekDates[0])} ~ {formatDate(weekDates[6])}
+          </div>
+          <div style={{fontSize:11,color:c.muted}}>
+            {weekOffset===0?"이번 주":weekOffset===1?"다음 주":weekOffset===-1?"지난 주":`${weekOffset>0?"+":""}${weekOffset}주`}
+          </div>
+        </div>
+        <button onClick={()=>setWeekOffset(w=>w+1)}
+          style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>다음 ›</button>
+      </div>
+
+      {/* 공유 버튼 (추후 활성화) */}
+      <div style={{padding:"8px 16px",display:"flex",justifyContent:"flex-end"}}>
+        <button disabled style={{padding:"5px 14px",background:"none",border:`1px solid ${c.border}`,borderRadius:20,color:c.muted,fontSize:12,cursor:"not-allowed",opacity:0.5}}>
+          🔗 팀원과 공유 (준비 중)
+        </button>
+      </div>
+
+      {/* 시간표 */}
+      {loading
+        ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
+        : <div style={{overflowX:"auto",padding:"0 8px",userSelect:"none"}}>
+            <div style={{display:"inline-block",minWidth:"100%"}}>
+              {/* 헤더 */}
+              <div style={{display:"flex",marginBottom:2}}>
+                <div style={{width:LABEL_W,flexShrink:0}}/>
+                {weekDates.map((d,i)=>(
+                  <div key={i} style={{width:CELL_W,textAlign:"center",flexShrink:0,marginLeft:1,marginRight:1}}>
+                    <div style={{fontSize:10,fontWeight:700,color:c.muted}}>{WEEK_DAYS[i]}</div>
+                    <div style={{fontSize:9,color:c.muted}}>{formatDate(d)}</div>
+                  </div>
+                ))}
+              </div>
+              {/* 시간 행 */}
+              {CLASS_PERIODS.map(h=>(
+                <div key={h} style={{display:"flex",marginBottom:1,alignItems:"center"}}>
+                  <div style={{width:LABEL_W,fontSize:10,color:c.muted,textAlign:"right",paddingRight:6,flexShrink:0}}>{PERIOD_TIMES[h]}</div>
+                  {WEEK_DAYS.map((d,di)=>{
+                    const key = `${d}_${h}`;
+                    const entry = scheduleData[key];
+                    // 드래그 범위 내인지
+                    const inDrag = isDragging && dragDay===d &&
+                      h >= Math.min(dragStartH,dragEndH??dragStartH) &&
+                      h <= Math.max(dragStartH,dragEndH??dragStartH);
+                    return (
+                      <div key={d}
+                        onMouseDown={e=>{
+                          e.preventDefault();
+                          setIsDragging(true); setDragDay(d); setDragStartH(h); setDragEndH(h);
+                        }}
+                        onMouseEnter={()=>{ if(isDragging && dragDay===d) setDragEndH(h); }}
+                        onMouseUp={()=>{
+                          if(isDragging) {
+                            const minH = Math.min(dragStartH, dragEndH??dragStartH);
+                            const maxH = Math.max(dragStartH, dragEndH??dragStartH);
+                            const slots = [];
+                            for(let i=minH;i<=maxH;i++) slots.push({day:dragDay,hour:i,key:`${dragDay}_${i}`});
+                            setIsDragging(false);
+                            if(slots.length===1) {
+                              // 단일 클릭: 기존처럼 모달
+                              setSelectedSlots(slots);
+                              setSelectedSlot(slots[0]);
+                              setInputTitle(entry?.title||"");
+                              setInputMemo(entry?.memo||"");
+                            } else {
+                              // 다중 선택: 모달 오픈
+                              setSelectedSlots(slots);
+                              setSelectedSlot(slots[0]);
+                              setInputTitle("");
+                              setInputMemo("");
+                            }
+                          }
+                        }}
+                        onTouchStart={e=>{
+                          setIsDragging(true); setDragDay(d); setDragStartH(h); setDragEndH(h);
+                        }}
+                        onTouchMove={e=>{
+                          if(!isDragging||dragDay!==d) return;
+                          const touch = e.touches[0];
+                          const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                          if(el?.dataset?.hour) setDragEndH(Number(el.dataset.hour));
+                        }}
+                        onTouchEnd={()=>{
+                          if(isDragging) {
+                            const minH = Math.min(dragStartH, dragEndH??dragStartH);
+                            const maxH = Math.max(dragStartH, dragEndH??dragStartH);
+                            const slots = [];
+                            for(let i=minH;i<=maxH;i++) slots.push({day:dragDay,hour:i,key:`${dragDay}_${i}`});
+                            setIsDragging(false);
+                            setSelectedSlots(slots);
+                            setSelectedSlot(slots[0]);
+                            setInputTitle(slots.length===1?(scheduleData[slots[0].key]?.title||""):"");
+                            setInputMemo(slots.length===1?(scheduleData[slots[0].key]?.memo||""):"");
+                          }
+                        }}
+                        data-hour={h}
+                        style={{
+                          width:CELL_W, height:CELL_H, flexShrink:0, cursor:"pointer",
+                          background: inDrag ? `${TC}55` : entry ? entry.color+"33" : c.surface,
+                          border:`1px solid ${inDrag ? TC : entry ? entry.color : c.border}`,
+                          borderRadius:3, margin:"0 1px",
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          overflow:"hidden"
+                        }}>
+                        {entry && !inDrag && <span style={{fontSize:8,color:entry.color,fontWeight:700,textAlign:"center",lineHeight:1.2,padding:"0 2px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"100%"}}>{entry.title}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+      }
+
+      {/* 일정 입력 모달 */}
+      {selectedSlot && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:9999,padding:"0 0 20px"}}
+          onClick={e=>{if(e.target===e.currentTarget){setSelectedSlot(null);setSelectedSlots([]);setInputTitle("");setInputMemo("");}}}>
+          <div style={{background:"#141824",border:`1px solid ${TC}33`,borderRadius:"20px 20px 0 0",padding:"20px",maxWidth:480,width:"100%"}}>
+            <div style={{fontSize:14,fontWeight:700,color:TC,marginBottom:14}}>
+              📅 {selectedSlots.length>1
+                ? `${selectedSlots[0].day}요일 ${PERIOD_TIMES[selectedSlots[0].hour]} ~ ${PERIOD_TIMES[selectedSlots[selectedSlots.length-1].hour]}`
+                : `${selectedSlot.day}요일 ${PERIOD_TIMES[selectedSlot.hour]}`}
+            </div>
+            <input value={inputTitle} onChange={e=>setInputTitle(e.target.value)}
+              placeholder="일정 제목" autoFocus
+              style={{width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:8,fontFamily:"inherit"}}/>
+            <textarea value={inputMemo} onChange={e=>setInputMemo(e.target.value)}
+              placeholder="메모 (선택사항)" rows={2}
+              style={{width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:13,outline:"none",resize:"none",boxSizing:"border-box",marginBottom:12,fontFamily:"inherit"}}/>
+            <div style={{display:"flex",gap:8}}>
+              {(selectedSlots.length>1 || scheduleData[selectedSlot.key]) && (
+                <button onClick={()=>deleteSlot(selectedSlot.key)}
+                  style={{flex:1,padding:"10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:10,color:c.error,cursor:"pointer",fontSize:13,fontWeight:600}}>삭제</button>
+              )}
+              <button onClick={()=>{setSelectedSlot(null);setInputTitle("");setInputMemo("");}}
+                style={{flex:1,padding:"10px",background:"none",border:`1px solid ${c.border}`,borderRadius:10,color:c.muted,cursor:"pointer",fontSize:13}}>취소</button>
+              <button onClick={saveSlot} disabled={!inputTitle.trim()}
+                style={{flex:2,padding:"10px",background:inputTitle.trim()?`linear-gradient(135deg,${TC},#70b0a0)`:"#3a4a60",border:"none",borderRadius:10,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TEAM PROJECT PAGE ────────────────────────────────────
+const GRADE_SUBJECTS = {
+  3: ["CAD/CAM", "Control", "Fluid Mechanics", "Machine Elements"],
+};
+
+function TeamProjectPage({ onBack, user, onUserUpdate }) {
+  const TC = "#a0d0a0";
+  const savedGrade = user.gradeSet ? (user.grade || null) : null;
+  const [mainTab, setMainTab]   = useState("schedule"); // schedule | subjects
+  const [view, setView]         = useState(savedGrade ? "subjects" : "grade");
+  const [grade, setGrade]       = useState(savedGrade);
+  const [confirmGrade, setConfirmGrade] = useState(null);
+  const [subject, setSubject]   = useState(null);
+  const [teams, setTeams]       = useState([]);
+  const [team, setTeam]         = useState(null);
+  const [members, setMembers]   = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [search, setSearch]     = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [syncing, setSyncing]   = useState(false);
+  const [err, setErr]           = useState("");
+  const [teamTab, setTeamTab]   = useState("progress");
+  const inp = {width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
+
+  // 학년 저장
+  async function saveGrade(g) {
+    setGrade(g);
+    await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(user.name)}.json`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({grade:g, gradeSet:true})
+    });
+    const updated = {...user, grade:g, gradeSet:true};
+    if(onUserUpdate) onUserUpdate(updated);
+    setView("subjects");
+  }
+
+  // 팀 목록 로드
+  async function loadTeams(subj) {
+    setLoading(true);
+    setSubject(subj);
+    const res = await fetch(`${FIREBASE_URL}/teams/${encodeURIComponent(subj)}.json`);
+    const data = await res.json();
+    const arr = data ? Object.entries(data).map(([k,v])=>({...v,key:k})) : [];
+    setTeams(arr);
+    setLoading(false);
+    setView("teams");
+  }
+
+  // 팀 상세 로드
+  async function loadTeam(t) {
+    // 멤버가 아니면 접근 불가
+    if(!(t.members||[]).includes(user.name) && !user.isAdmin) return;
+    setLoading(true);
+    setTeam(t);
+    setMembers(t.members||[]);
+    // 전체 유저 (초대용)
+    const uData = await fetch(`${FIREBASE_URL}/users.json`).then(r=>r.json());
+    setAllUsers(uData ? Object.values(uData) : []);
+    setLoading(false);
+    setView("team");
+  }
+
+  // 팀 삭제
+  async function deleteTeam(t, e) {
+    e.stopPropagation();
+    if(!window.confirm(`"${t.name}" 팀을 삭제할까요?
+팀의 모든 데이터가 삭제돼요.`)) return;
+    await fetch(`${FIREBASE_URL}/teams/${encodeURIComponent(subject)}/${t.key}.json`, {method:"DELETE"});
+    await loadTeams(subject);
+  }
+
+  // 팀 생성
+  async function createTeam() {
+    if(!newTeamName.trim()) return setErr("팀 이름을 입력해주세요.");
+    setSyncing(true);
+    const teamData = { name:newTeamName.trim(), subject, creator:user.name, members:[user.name], createdAt:Date.now() };
+    await fetch(`${FIREBASE_URL}/teams/${encodeURIComponent(subject)}.json`, {
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(teamData)
+    });
+    setNewTeamName(""); setErr(""); setSyncing(false);
+    await loadTeams(subject);
+  }
+
+  // 팀원 초대
+  async function inviteMember(uName) {
+    const newMembers = [...new Set([...members, uName])];
+    await fetch(`${FIREBASE_URL}/teams/${encodeURIComponent(subject)}/${team.key}/members.json`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newMembers)
+    });
+    setMembers(newMembers);
+    setTeam(prev=>({...prev, members:newMembers}));
+  }
+
+  // 팀원 제거
+  async function removeMember(uName) {
+    if(uName === team.creator) return;
+    const newMembers = members.filter(m=>m!==uName);
+    await fetch(`${FIREBASE_URL}/teams/${encodeURIComponent(subject)}/${team.key}/members.json`, {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newMembers)
+    });
+    setMembers(newMembers);
+  }
+
+  // 학년 선택
+  if (view==="grade") return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif"}}>
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={onBack} style={{background:`${TC}18`,border:`1px solid ${TC}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:TC,fontSize:13,fontWeight:600}}>← 홈</button>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:20}}>📅</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:TC}}>팀플</h1>
+          </div>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>학년 설정 (한 번만 설정 가능)</p>
+        </div>
+      </div>
+      <div style={{padding:"40px 20px",maxWidth:400,margin:"0 auto"}}>
+        <div style={{fontSize:14,color:c.muted,textAlign:"center",marginBottom:24}}>내 학년을 선택하면<br/>해당 학년 과목이 표시돼요</div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {[1,2,3,4].map(g=>(
+            <button key={g} onClick={()=>setConfirmGrade(g)}
+              style={{padding:"16px",background:c.surface,border:`1px solid ${confirmGrade===g?TC:c.border}`,borderRadius:14,color:confirmGrade===g?TC:c.text,cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span>{g}학년</span>
+              {g===3 && <span style={{fontSize:12,color:TC,background:`${TC}15`,borderRadius:20,padding:"2px 10px"}}>과목 있음</span>}
+              {g!==3 && <span style={{fontSize:12,color:c.muted}}>과목 추가 예정</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 학년 확인 모달 */}
+      {confirmGrade && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:"0 20px"}}>
+          <div style={{background:"#141824",border:"1px solid #1e2d42",borderRadius:16,padding:"24px 20px",maxWidth:320,width:"100%"}}>
+            <div style={{fontSize:18,fontWeight:700,color:TC,marginBottom:8,textAlign:"center"}}>{confirmGrade}학년 선택</div>
+            <div style={{fontSize:13,color:c.muted,marginBottom:20,textAlign:"center",lineHeight:1.7}}>
+              <span style={{color:"#ff9966",fontWeight:700}}>한 번 설정하면 변경할 수 없어요.</span><br/>
+              {confirmGrade}학년으로 설정할까요?
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmGrade(null)}
+                style={{flex:1,padding:"11px",background:"none",border:"1px solid #1e2d42",borderRadius:10,color:c.muted,cursor:"pointer",fontSize:14,fontWeight:600}}>아니오</button>
+              <button onClick={()=>{saveGrade(confirmGrade);setConfirmGrade(null);}}
+                style={{flex:1,padding:"11px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:10,color:"#0a0d14",cursor:"pointer",fontSize:14,fontWeight:700}}>네</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // 스케줄 + 과목 탭 (grade 설정 완료 후)
+  if (view==="subjects") return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif"}}>
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={onBack} style={{background:`${TC}18`,border:`1px solid ${TC}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:TC,fontSize:13,fontWeight:600}}>← 홈</button>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:20}}>📅</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:TC}}>{grade}학년 팀플</h1>
+          </div>
+        </div>
+      </div>
+      {/* 탭 */}
+      <div style={{display:"flex",borderBottom:`1px solid ${c.border}`}}>
+        {[{id:"schedule",label:"📅 내 스케줄"},{id:"subjects",label:"📖 과목별 팀"}].map(t=>(
+          <button key={t.id} onClick={()=>setMainTab(t.id)}
+            style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"12px 0",fontSize:13,fontWeight:mainTab===t.id?700:400,color:mainTab===t.id?TC:c.muted,borderBottom:mainTab===t.id?`2px solid ${TC}`:"2px solid transparent"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 내 스케줄 탭 */}
+      {mainTab==="schedule" && <MyScheduleTab grade={grade} user={user} TC={TC}/>}
+
+      {/* 과목별 팀 탭 */}
+      {mainTab==="subjects" && (
+        <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
+          {(GRADE_SUBJECTS[grade]||[]).length === 0
+            ? <div style={{textAlign:"center",padding:"60px 0",color:c.muted}}>
+                <div style={{fontSize:40,marginBottom:12}}>📚</div>
+                <div>아직 등록된 과목이 없어요</div>
+              </div>
+            : (GRADE_SUBJECTS[grade]||[]).map((subj,i)=>(
+                <button key={i} onClick={()=>loadTeams(subj)}
+                  style={{width:"100%",background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"18px 20px",cursor:"pointer",textAlign:"left",color:c.text,marginBottom:10,display:"flex",alignItems:"center",gap:14,transition:"all 0.15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=TC+"66";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;}}>
+                  <div style={{width:44,height:44,borderRadius:10,background:`${TC}18`,border:`1px solid ${TC}33`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>📖</div>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700,color:TC}}>{subj}</div>
+                    <div style={{fontSize:12,color:c.muted,marginTop:2}}>팀 목록 보기</div>
+                  </div>
+                  <span style={{marginLeft:"auto",fontSize:18,color:TC+"88"}}>›</span>
+                </button>
+              ))
+          }
+        </div>
+      )}
+    </div>
+  );
+
+  // 팀 목록
+  if (view==="teams") return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={()=>setView("subjects")} style={{background:`${TC}18`,border:`1px solid ${TC}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:TC,fontSize:13,fontWeight:600}}>← 과목</button>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:20}}>📖</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:TC}}>{subject}</h1>
+          </div>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>팀 목록</p>
+        </div>
+      </div>
+      <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
+        {/* 팀 만들기 */}
+        <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:10}}>+ 새 팀 만들기</div>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newTeamName} onChange={e=>{setNewTeamName(e.target.value);setErr("");}} placeholder="팀 이름 입력"
+              style={{...inp,flex:1,marginBottom:0}}/>
+            <button onClick={createTeam} disabled={syncing}
+              style={{padding:"10px 16px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:8,color:"#0a0d14",fontWeight:700,cursor:"pointer",fontSize:13,flexShrink:0}}>
+              {syncing?"...":"만들기"}
+            </button>
+          </div>
+          {err && <div style={{fontSize:12,color:c.error,marginTop:6}}>⚠️ {err}</div>}
+        </div>
+
+        {loading
+          ? <div style={{textAlign:"center",padding:"40px 0",color:c.muted}}>불러오는 중...</div>
+          : teams.length===0
+            ? <div style={{textAlign:"center",padding:"40px 0",color:c.muted}}>
+                <div style={{fontSize:32,marginBottom:8}}>👥</div>
+                아직 팀이 없어요
+              </div>
+            : teams.map((t,i)=>{
+                const isMember = (t.members||[]).includes(user.name) || user.isAdmin;
+                return (
+                  <div key={i} style={{background:c.surface,border:`1px solid ${isMember?c.border:c.border+"66"}`,borderRadius:12,padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12,opacity:isMember?1:0.45}}
+                    onMouseEnter={e=>{if(isMember)e.currentTarget.style.borderColor=TC+"66";}}
+                    onMouseLeave={e=>{if(isMember)e.currentTarget.style.borderColor=c.border;}}>
+                    <div style={{width:40,height:40,borderRadius:10,background:`${TC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                      {isMember?"👥":"🔒"}
+                    </div>
+                    <div onClick={()=>{ if(isMember) loadTeam(t); }} style={{flex:1,cursor:isMember?"pointer":"default"}}>
+                      <div style={{fontSize:14,fontWeight:700,color:isMember?TC:c.muted}}>{t.name}</div>
+                      <div style={{fontSize:12,color:c.muted}}>
+                        {isMember ? `팀원 ${(t.members||[]).length}명 · ${t.creator} 생성` : `🔒 초대된 멤버만 접근 가능`}
+                      </div>
+                    </div>
+                    {(t.creator===user.name||user.isAdmin) && (
+                      <button onClick={(e)=>deleteTeam(t,e)}
+                        style={{padding:"4px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:11,flexShrink:0}}>삭제</button>
+                    )}
+                    {isMember && <span onClick={()=>loadTeam(t)} style={{fontSize:18,color:TC+"88",cursor:"pointer"}}>›</span>}
+                    {!isMember && <span style={{fontSize:12,color:c.muted}}>🔒</span>}
+                  </div>
+                );
+              })
+        }
+      </div>
+    </div>
+  );
+
+  // 팀 상세
+  if (view==="team") return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
+      {/* 헤더 */}
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={()=>{setView("teams");loadTeams(subject);setTeamTab("progress");}} style={{background:`${TC}18`,border:`1px solid ${TC}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:TC,fontSize:13,fontWeight:600}}>← 팀 목록</button>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:20}}>👥</span>
+            <h1 style={{margin:0,fontSize:18,fontWeight:700,color:TC}}>{team?.name}</h1>
+          </div>
+          <p style={{margin:0,fontSize:11,color:c.muted}}>{subject} · 팀원 {members.length}명</p>
+        </div>
+        {/* 팀원 칩 */}
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:120}}>
+          {members.slice(0,3).map((m,i)=>(
+            <span key={i} style={{fontSize:10,background:`${TC}20`,border:`1px solid ${TC}33`,borderRadius:20,padding:"2px 7px",color:TC}}>{m}</span>
+          ))}
+          {members.length>3 && <span style={{fontSize:10,color:c.muted}}>+{members.length-3}</span>}
+        </div>
+      </div>
+
+      {/* 탭 */}
+      <div style={{display:"flex",borderBottom:`1px solid ${c.border}`}}>
+        {[{id:"progress",label:"📋 진행 상황"},{id:"schedule",label:"📅 일정 공유"},{id:"links",label:"🔗 링크"}].map(t=>(
+          <button key={t.id} onClick={()=>setTeamTab(t.id)}
+            style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"11px 4px",fontSize:12,fontWeight:teamTab===t.id?700:400,color:teamTab===t.id?TC:c.muted,borderBottom:teamTab===t.id?`2px solid ${TC}`:"2px solid transparent"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{maxWidth:560,margin:"0 auto"}}>
+
+        {/* ── 진행 상황 탭 ── */}
+        {teamTab==="progress" && <TeamProgressTab team={team} subject={subject} user={user} TC={TC} members={members} allUsers={allUsers} search={search} setSearch={setSearch} inviteMember={inviteMember} removeMember={removeMember} inp={inp}/>}
+
+        {/* ── 일정 공유 탭 ── */}
+        {teamTab==="schedule" && <TeamScheduleTab team={team} subject={subject} user={user} TC={TC} members={members}/>}
+
+        {/* ── 링크 탭 ── */}
+        {teamTab==="links" && <TeamLinksTab team={team} subject={subject} user={user} TC={TC}/>}
+
+      </div>
+    </div>
+  );
+
+  return null;
+}
+
+// ── TEAM PROGRESS TAB ────────────────────────────────────
+function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, setSearch, inviteMember, removeMember, inp }) {
+  const [logs, setLogs]         = useState([]);
+  const [newDate, setNewDate]   = useState(new Date().toISOString().slice(0,10));
+  const [newDesc, setNewDesc]   = useState("");
+  const [newStatus, setNewStatus] = useState("진행중"); // 진행중 | 완료 | 예정
+  const [syncing, setSyncing]   = useState(false);
+  const [loading, setLoading]   = useState(true);
+
+  const STATUS_COLORS = {"예정":"#60c0f0","진행중":"#f0c060","완료":"#a0d0a0"};
+  const fbBase = `teams/${encodeURIComponent(subject)}/${team.key}`;
+
+  const load = async () => {
+    const res = await fetch(`${FIREBASE_URL}/${fbBase}/progress.json`);
+    const data = await res.json();
+    const arr = data ? Object.entries(data).map(([k,v])=>({...v,key:k})).sort((a,b)=>a.date.localeCompare(b.date)) : [];
+    setLogs(arr); setLoading(false);
+  };
+  useEffect(()=>{ load(); },[]);
+
+  async function addLog() {
+    if(!newDesc.trim()) return;
+    setSyncing(true);
+    await fetch(`${FIREBASE_URL}/${fbBase}/progress.json`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ date:newDate, desc:newDesc.trim(), status:newStatus, by:user.name, createdAt:Date.now() })
+    });
+    setNewDesc(""); setSyncing(false); load();
+  }
+
+  async function deleteLog(key) {
+    await fetch(`${FIREBASE_URL}/${fbBase}/progress/${key}.json`, {method:"DELETE"});
+    setLogs(prev=>prev.filter(l=>l.key!==key));
+  }
+
+  async function toggleStatus(log) {
+    const cycle = {"예정":"진행중","진행중":"완료","완료":"예정"};
+    const next = cycle[log.status]||"예정";
+    await fetch(`${FIREBASE_URL}/${fbBase}/progress/${log.key}.json`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({status:next})
+    });
+    setLogs(prev=>prev.map(l=>l.key===log.key?{...l,status:next}:l));
+  }
+
+  return (
+    <div style={{padding:"16px 20px",paddingBottom:60}}>
+      {/* 팀원 관리 */}
+      <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:8}}>👥 팀원 ({members.length}명)</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+          {members.map((m,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:`${TC}15`,border:`1px solid ${TC}33`,borderRadius:20,padding:"4px 10px"}}>
+              <span style={{fontSize:12,color:TC,fontWeight:600}}>{m}</span>
+              {m===team.creator && <span style={{fontSize:10}}>👑</span>}
+              {m!==team.creator && (user.name===team.creator||user.isAdmin) && (
+                <button onClick={()=>removeMember(m)} style={{background:"none",border:"none",color:c.error,cursor:"pointer",fontSize:12,padding:0}}>×</button>
+              )}
+            </div>
+          ))}
+        </div>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 팀원 초대 (이름 검색)" style={{...inp,marginBottom:6}}/>
+        <div style={{maxHeight:120,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+          {allUsers.filter(u=>u?.name&&u.name.includes(search)&&!members.includes(u.name)&&search).map((u,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:c.surface2,borderRadius:8}}>
+              <span style={{fontSize:13}}>{u.name} <span style={{color:c.muted,fontSize:11}}>{String(u.studentId||"").slice(0,2)}학번</span></span>
+              <button onClick={()=>inviteMember(u.name)} style={{padding:"3px 10px",background:`${TC}15`,border:`1px solid ${TC}44`,borderRadius:6,color:TC,cursor:"pointer",fontSize:11,fontWeight:700}}>초대</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 진행상황 입력 */}
+      <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:10}}>📋 진행상황 추가</div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{...inp,flex:1,marginBottom:0}}/>
+          <select value={newStatus} onChange={e=>setNewStatus(e.target.value)}
+            style={{padding:"8px 10px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:STATUS_COLORS[newStatus],fontSize:13,outline:"none",fontWeight:700,flexShrink:0}}>
+            <option value="예정">예정</option>
+            <option value="진행중">진행중</option>
+            <option value="완료">완료</option>
+          </select>
+        </div>
+        <textarea value={newDesc} onChange={e=>setNewDesc(e.target.value)} placeholder="진행 내용 입력 (예: 주제 선정 완료)" rows={10}
+          style={{...inp,marginBottom:8,resize:"vertical",minHeight:200}}/>
+        <button onClick={addLog} disabled={syncing||!newDesc.trim()}
+          style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:10,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+          {syncing?"등록 중...":"등록"}
+        </button>
+      </div>
+
+      {/* 진행상황 타임라인 */}
+      <div style={{fontSize:11,color:c.muted,fontWeight:700,marginBottom:10}}>진행 타임라인</div>
+      {loading ? <div style={{textAlign:"center",padding:"30px",color:c.muted}}>불러오는 중...</div>
+        : logs.length===0
+          ? <div style={{textAlign:"center",padding:"30px",color:c.muted}}>
+              <div style={{fontSize:32,marginBottom:8}}>📋</div>진행 내용을 추가해보세요
+            </div>
+          : logs.map((l,i)=>(
+              <div key={i} style={{display:"flex",gap:12,marginBottom:8,alignItems:"flex-start"}}>
+                {/* 타임라인 선 */}
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
+                  <div style={{width:12,height:12,borderRadius:"50%",background:STATUS_COLORS[l.status],border:`2px solid ${STATUS_COLORS[l.status]}`,marginTop:4}}/>
+                  {i<logs.length-1 && <div style={{width:2,flex:1,background:`${STATUS_COLORS[l.status]}44`,minHeight:20,marginTop:2}}/>}
+                </div>
+                <div style={{flex:1,background:c.surface,border:`1px solid ${c.border}`,borderRadius:10,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:11,color:c.muted}}>{l.date}</span>
+                      <button onClick={()=>toggleStatus(l)}
+                        style={{fontSize:10,background:`${STATUS_COLORS[l.status]}20`,border:`1px solid ${STATUS_COLORS[l.status]}44`,borderRadius:20,padding:"1px 8px",color:STATUS_COLORS[l.status],cursor:"pointer",fontWeight:700}}>
+                        {l.status}
+                      </button>
+                    </div>
+                    {(l.by===user.name||user.isAdmin) && (
+                      <button onClick={()=>deleteLog(l.key)} style={{padding:"2px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:10}}>삭제</button>
+                    )}
+                  </div>
+                  <div style={{fontSize:13,color:c.text}}>{l.desc}</div>
+                  <div style={{fontSize:10,color:c.muted,marginTop:3}}>{l.by}</div>
+                </div>
+              </div>
+            ))
+      }
+    </div>
+  );
+}
+
+// ── TEAM SCHEDULE TAB ─────────────────────────────────────
+function TeamScheduleTab({ team, subject, user, TC, members }) {
+  const [allSlots, setAllSlots] = useState({});
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [lastSync, setLastSync] = useState(null);
+
+  const getWeekStart = (offset=0) => {
+    const d = new Date();
+    const day = d.getDay();
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
+    return mon.toISOString().slice(0,10);
+  };
+  const weekStart = getWeekStart(weekOffset);
+  const getWeekDates = () => {
+    const dates = []; const mon = new Date(weekStart);
+    for(let i=0;i<7;i++) { const d=new Date(mon); d.setDate(mon.getDate()+i); dates.push(d); }
+    return dates;
+  };
+  const weekDates = getWeekDates();
+  const formatDate = d => `${d.getMonth()+1}/${d.getDate()}`;
+
+  // 팀원들의 my_schedules 로드
+  const load = async (quiet=false) => {
+    if(!quiet) setLoading(true);
+    const results = {};
+    await Promise.all(members.map(async (name) => {
+      try {
+        const res = await fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}.json`);
+        const data = await res.json() || {};
+        const slots = {};
+        Object.entries(data).forEach(([k,v])=>{ if(v?.title) slots[k]=true; });
+        results[name] = slots;
+      } catch(e) { results[name] = {}; }
+    }));
+    setAllSlots(results);
+    setLastSync(new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
+    if(!quiet) setLoading(false);
+  };
+  useEffect(()=>{ load(); },[weekOffset, members.length]);
+  useEffect(()=>{
+    const timer = setInterval(()=>load(true), 5000);
+    return ()=>clearInterval(timer);
+  },[weekOffset, members.length]);
+
+  const getSlotUsers = (day, hour) => {
+    const key = `${day}_${hour}`;
+    return members.filter(m => allSlots[m]?.[key]);
+  };
+
+  const CELL_W = 42; const CELL_H = 28; const LABEL_W = 44;
+  const memberColors = ["#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070"];
+
+  return (
+    <div style={{paddingBottom:60}}>
+      {/* 주 선택 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderBottom:`1px solid ${c.border}`}}>
+        <button onClick={()=>setWeekOffset(w=>w-1)} style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>‹</button>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:13,fontWeight:700,color:TC}}>{formatDate(weekDates[0])} ~ {formatDate(weekDates[6])}</div>
+          <div style={{fontSize:11,color:c.muted}}>{weekOffset===0?"이번 주":weekOffset===1?"다음 주":weekOffset===-1?"지난 주":`${weekOffset>0?"+":""}${weekOffset}주`}</div>
+        </div>
+        <button onClick={()=>setWeekOffset(w=>w+1)} style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>›</button>
+      </div>
+      {/* 동기화 상태 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 16px",background:c.surface2}}>
+        <span style={{fontSize:11,color:c.muted}}>🔄 {lastSync ? `${lastSync} 동기화됨` : "동기화 중..."}</span>
+        <button onClick={()=>load(false)} style={{fontSize:11,color:TC,background:"none",border:`1px solid ${TC}33`,borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>새로고침</button>
+      </div>
+      {/* 범례 */}
+      <div style={{display:"flex",gap:8,padding:"8px 16px",flexWrap:"wrap"}}>
+        {members.map((m,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:11}}>
+            <div style={{width:10,height:10,borderRadius:2,background:memberColors[i%memberColors.length]}}/>
+            <span style={{color:c.muted}}>{m}</span>
+          </div>
+        ))}
+      </div>
+      {loading ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
+        : <div style={{overflowX:"auto",padding:"0 8px"}}>
+            <div style={{display:"inline-block",minWidth:"100%"}}>
+              <div style={{display:"flex",marginBottom:2}}>
+                <div style={{width:LABEL_W,flexShrink:0}}/>
+                {weekDates.map((d,i)=>(
+                  <div key={i} style={{width:CELL_W,textAlign:"center",flexShrink:0,marginLeft:1,marginRight:1}}>
+                    <div style={{fontSize:10,fontWeight:700,color:c.muted}}>{WEEK_DAYS[i]}</div>
+                    <div style={{fontSize:9,color:c.muted}}>{formatDate(d)}</div>
+                  </div>
+                ))}
+              </div>
+              {CLASS_PERIODS.map(h=>(
+                <div key={h} style={{display:"flex",marginBottom:1,alignItems:"center"}}>
+                  <div style={{width:LABEL_W,fontSize:9,color:c.muted,textAlign:"right",paddingRight:6,flexShrink:0}}>{PERIOD_TIMES[h]}</div>
+                  {WEEK_DAYS.map((d,di)=>{
+                    const slotUsers = getSlotUsers(d,h);
+                    const count = slotUsers.length;
+                    const intensity = count/Math.max(members.length,1);
+                    const bg = count===0 ? c.surface
+                      : count===members.length ? `${TC}66`
+                      : `${TC}${Math.round(15+intensity*40).toString(16).padStart(2,"0")}`;
+                    return (
+                      <div key={d} title={slotUsers.join(", ")}
+                        style={{width:CELL_W,height:CELL_H,flexShrink:0,background:bg,border:`1px solid ${count>0?TC:c.border}`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {count>0 && <span style={{fontSize:9,color:TC,fontWeight:700}}>{count}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+      }
+      <div style={{padding:"8px 16px",fontSize:11,color:c.muted}}>💡 숫자는 해당 시간에 가능한 팀원 수예요. 셀에 마우스를 올리면 이름이 표시돼요.</div>
+    </div>
+  );
+}
+
+// ── TEAM LINKS TAB ────────────────────────────────────────
+function TeamLinksTab({ team, subject, user, TC }) {
+  const [links, setLinks]       = useState([]);
+  const [newName, setNewName]   = useState("");
+  const [newUrl, setNewUrl]     = useState("");
+  const [syncing, setSyncing]   = useState(false);
+  const [loading, setLoading]   = useState(true);
+
+  const LINK_ICONS = {"teams":"💼","drive":"📁","notion":"📝","github":"💻","figma":"🎨","기타":"🔗"};
+  const fbBase = `teams/${encodeURIComponent(subject)}/${team.key}/links`;
+
+  const load = async () => {
+    const res = await fetch(`${FIREBASE_URL}/${fbBase}.json`);
+    const data = await res.json();
+    setLinks(data ? Object.entries(data).map(([k,v])=>({...v,key:k})) : []);
+    setLoading(false);
+  };
+  useEffect(()=>{ load(); },[]);
+
+  async function addLink() {
+    if(!newName.trim()||!newUrl.trim()) return;
+    setSyncing(true);
+    const url = newUrl.startsWith("http") ? newUrl : `https://${newUrl}`;
+    await fetch(`${FIREBASE_URL}/${fbBase}.json`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ name:newName.trim(), url, by:user.name, createdAt:Date.now() })
+    });
+    setNewName(""); setNewUrl(""); setSyncing(false); load();
+  }
+
+  async function deleteLink(key) {
+    await fetch(`${FIREBASE_URL}/${fbBase}/${key}.json`, {method:"DELETE"});
+    setLinks(prev=>prev.filter(l=>l.key!==key));
+  }
+
+  const getLinkIcon = (url) => {
+    if(url.includes("teams.microsoft")) return "💼";
+    if(url.includes("drive.google")||url.includes("docs.google")) return "📁";
+    if(url.includes("notion")) return "📝";
+    if(url.includes("github")) return "💻";
+    if(url.includes("figma")) return "🎨";
+    return "🔗";
+  };
+
+  const inp = {width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
+
+  return (
+    <div style={{padding:"16px 20px",paddingBottom:60}}>
+      {/* 링크 추가 */}
+      <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:10}}>🔗 링크 추가</div>
+        <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="이름 (예: 팀 드라이브)" style={{...inp,marginBottom:8}}/>
+        <input value={newUrl} onChange={e=>setNewUrl(e.target.value)} placeholder="URL (예: drive.google.com/...)" style={{...inp,marginBottom:8}}/>
+        <button onClick={addLink} disabled={syncing||!newName.trim()||!newUrl.trim()}
+          style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:10,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+          {syncing?"추가 중...":"링크 추가"}
+        </button>
+      </div>
+
+      {/* 빠른 추가 버튼 */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:c.muted,marginBottom:8}}>빠른 추가</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[{name:"Teams",url:"teams.microsoft.com",icon:"💼"},{name:"Google Drive",url:"drive.google.com",icon:"📁"},{name:"Notion",url:"notion.so",icon:"📝"},{name:"GitHub",url:"github.com",icon:"💻"}].map((s,i)=>(
+            <button key={i} onClick={()=>{setNewName(s.name);setNewUrl(`https://${s.url}`);}}
+              style={{padding:"6px 12px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:20,color:c.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",gap:4}}>
+              {s.icon} {s.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 링크 목록 */}
+      {loading ? <div style={{textAlign:"center",padding:"30px",color:c.muted}}>불러오는 중...</div>
+        : links.length===0
+          ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>
+              <div style={{fontSize:32,marginBottom:8}}>🔗</div>링크를 추가해보세요
+            </div>
+          : links.map((l,i)=>(
+              <div key={i} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:40,height:40,borderRadius:10,background:`${TC}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{getLinkIcon(l.url)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:TC}}>{l.name}</div>
+                  <div style={{fontSize:11,color:c.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.url}</div>
+                </div>
+                <a href={l.url} target="_blank" rel="noopener noreferrer"
+                  style={{padding:"6px 12px",background:`${TC}15`,border:`1px solid ${TC}33`,borderRadius:8,color:TC,cursor:"pointer",fontSize:12,fontWeight:700,textDecoration:"none",flexShrink:0}}>열기</a>
+                {(l.by===user.name||user.isAdmin) && (
+                  <button onClick={()=>deleteLink(l.key)} style={{padding:"6px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:8,color:c.error,cursor:"pointer",fontSize:11,flexShrink:0}}>삭제</button>
+                )}
+              </div>
+            ))
+      }
+    </div>
+  );
+}
+
+
 // ── HOME SCREEN ───────────────────────────────────────────
 function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
   const cards = [
@@ -2997,6 +4093,14 @@ function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
       desc: "공릉동 맛집 랜덤 추천",
       color: "#f0a060",
       sub: "랜덤 뽑기",
+    },
+    {
+      id: "teamproject",
+      emoji: "📅",
+      title: "팀플",
+      desc: "팀 구성 및 일정 공유",
+      color: "#a0d0a0",
+      sub: "과목별 팀 관리",
     },
     {
       id: "suggest",
@@ -3358,6 +4462,7 @@ function App() {
   if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "food")       return <FoodPage onBack={()=>setPage("home")}/>;
   if (page === "messages")   return <MessagesPage onBack={()=>setPage("home")} user={user}/>;
+  if (page === "teamproject") return <TeamProjectPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "suggest")    return <SuggestPage onBack={()=>setPage("home")} user={user}/>;
   if (page === "adminpanel") return <AdminPanelPage onBack={()=>setPage("home")}/>;
   return (
