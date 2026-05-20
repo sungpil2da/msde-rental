@@ -4406,6 +4406,16 @@ function LoginScreen({ onLogin }) {
   const [pendingUser, setPendingUser] = useState(null); // 가이드 보여줄 신규 유저
   const [showGuide, setShowGuide]     = useState(false);
   const [showFindPw, setShowFindPw]   = useState(false);
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [cpName, setCpName]           = useState("");
+  const [cpStudentId, setCpStudentId] = useState("");
+  const [cpEmail, setCpEmail]         = useState("");
+  const [cpOldPw, setCpOldPw]         = useState("");
+  const [cpNewPw, setCpNewPw]         = useState("");
+  const [cpNewPw2, setCpNewPw2]       = useState("");
+  const [cpErr, setCpErr]             = useState("");
+  const [cpDone, setCpDone]           = useState(false);
+  const [cpLoading, setCpLoading]     = useState(false);
   const [fpName, setFpName]           = useState("");
   const [fpEmail, setFpEmail]         = useState("");
   const [fpStudentId, setFpStudentId] = useState("");
@@ -4423,6 +4433,26 @@ function LoginScreen({ onLogin }) {
   if (showGuide) return <InstallGuide onClose={finishGuide}/>;
 
   const inp = {width:"100%",padding:"11px 14px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:10,color:c.text,fontSize:14,outline:"none",marginBottom:0,fontFamily:"inherit"};
+
+  async function handleChangePw() {
+    if(!cpName.trim()||!cpStudentId.trim()||!cpEmail.trim()||!cpOldPw||!cpNewPw||!cpNewPw2) return setCpErr("모든 항목을 입력해주세요.");
+    if(cpNewPw !== cpNewPw2) return setCpErr("새 비밀번호가 일치하지 않습니다.");
+    if(cpNewPw.length < 4) return setCpErr("비밀번호는 4자 이상이어야 해요.");
+    setCpLoading(true);
+    try {
+      const res = await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(cpName.trim())}.json`);
+      const u = await res.json();
+      if(!u) return setCpErr("존재하지 않는 사용자예요.");
+      if(u.studentId !== cpStudentId.trim()) return setCpErr("학번이 일치하지 않습니다.");
+      if(u.email !== cpEmail.trim()) return setCpErr("이메일이 일치하지 않습니다.");
+      if(u.password !== cpOldPw) return setCpErr("기존 비밀번호가 틀렸습니다.");
+      await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(cpName.trim())}/password.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cpNewPw)
+      });
+      setCpDone(true);
+    } catch(e) { setCpErr("오류가 발생했습니다."); }
+    finally { setCpLoading(false); }
+  }
 
   async function handleFindPw() {
     if(!fpName.trim()||!fpEmail.trim()||!fpStudentId.trim()||!fpPhone.trim()) return setFpErr("모든 항목을 입력해주세요.");
@@ -4550,10 +4580,17 @@ function LoginScreen({ onLogin }) {
 
         {/* 비밀번호 찾기 */}
         {mode==="login" && (
-          <button onClick={()=>{setShowFindPw(true);setFpDone(false);setFpErr("");setFpName("");setFpEmail("");setFpStudentId("");setFpPhone("");}}
-            style={{background:"none",border:"none",color:c.muted,fontSize:11,cursor:"pointer",marginTop:6,width:"100%",textDecoration:"underline"}}>
-            비밀번호를 잊으셨나요?
-          </button>
+          <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:6}}>
+            <button onClick={()=>{setShowFindPw(true);setFpDone(false);setFpErr("");setFpName("");setFpEmail("");setFpStudentId("");setFpPhone("");}}
+              style={{background:"none",border:"none",color:c.muted,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>
+              비밀번호를 잊으셨나요?
+            </button>
+            <span style={{color:c.border,fontSize:11}}>|</span>
+            <button onClick={()=>{setShowChangePw(true);setCpDone(false);setCpErr("");setCpName("");setCpStudentId("");setCpEmail("");setCpOldPw("");setCpNewPw("");setCpNewPw2("");}}
+              style={{background:"none",border:"none",color:c.muted,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>
+              비밀번호 변경
+            </button>
+          </div>
         )}
 
         {/* 앱 설치 안내 버튼 */}
@@ -4563,6 +4600,53 @@ function LoginScreen({ onLogin }) {
         </button>
       </div>
     </div>
+
+    {/* 비밀번호 변경 모달 */}
+    {showChangePw && (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:"0 20px"}}>
+        <div style={{background:"#141824",border:"1px solid #1e2d42",borderRadius:16,padding:"24px 20px",maxWidth:360,width:"100%"}}>
+          <div style={{fontSize:17,fontWeight:700,color:"#eef2ff",marginBottom:6,textAlign:"center"}}>🔑 비밀번호 변경</div>
+          {cpDone ? (
+            <>
+              <div style={{textAlign:"center",padding:"20px 0"}}>
+                <div style={{fontSize:32,marginBottom:10}}>✅</div>
+                <div style={{fontSize:14,color:"#eef2ff",fontWeight:600,marginBottom:8}}>비밀번호가 변경됐어요!</div>
+                <div style={{fontSize:12,color:"#5a6480"}}>새 비밀번호로 다시 로그인해주세요.</div>
+              </div>
+              <button onClick={()=>setShowChangePw(false)}
+                style={{width:"100%",padding:"11px",background:`linear-gradient(135deg,${c.piano},${c.guitar})`,border:"none",borderRadius:10,color:c.bg,fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                확인
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:12,color:"#5a6480",marginBottom:14,textAlign:"center"}}>본인 확인 후 새 비밀번호를 설정할 수 있어요</div>
+              {[
+                {value:cpName, set:setCpName, placeholder:"이름"},
+                {value:cpStudentId, set:setCpStudentId, placeholder:"학번", mode:"numeric"},
+                {value:cpEmail, set:setCpEmail, placeholder:"이메일", type:"email"},
+                {value:cpOldPw, set:setCpOldPw, placeholder:"기존 비밀번호", type:"password"},
+                {value:cpNewPw, set:setCpNewPw, placeholder:"새 비밀번호", type:"password"},
+                {value:cpNewPw2, set:setCpNewPw2, placeholder:"새 비밀번호 확인", type:"password"},
+              ].map((f,i)=>(
+                <input key={i} value={f.value} onChange={e=>{f.set(e.target.value);setCpErr("");}}
+                  placeholder={f.placeholder} type={f.type||"text"} inputMode={f.mode||"text"}
+                  style={{width:"100%",padding:"9px 12px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:13,outline:"none",boxSizing:"border-box",marginBottom:7,fontFamily:"inherit"}}/>
+              ))}
+              {cpErr && <div style={{fontSize:12,color:c.error,marginBottom:8}}>⚠️ {cpErr}</div>}
+              <div style={{display:"flex",gap:10,marginTop:4}}>
+                <button onClick={()=>setShowChangePw(false)}
+                  style={{flex:1,padding:"11px",background:"none",border:"1px solid #1e2d42",borderRadius:10,color:"#5a6480",cursor:"pointer",fontSize:13}}>취소</button>
+                <button onClick={handleChangePw} disabled={cpLoading}
+                  style={{flex:2,padding:"11px",background:`linear-gradient(135deg,${c.piano},${c.guitar})`,border:"none",borderRadius:10,color:c.bg,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  {cpLoading?"처리 중...":"변경하기"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* 비밀번호 찾기 모달 */}
     {showFindPw && (
