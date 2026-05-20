@@ -12,10 +12,17 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// FCM의 notification 필드가 있으면 FCM이 자동으로 알림을 표시함
-// onBackgroundMessage는 핸들러 등록 용도로만 사용 (showNotification 호출 X)
+// data-only 메시지 → FCM/iOS 자동 표시 없음 → 여기서만 1번 showNotification
 messaging.onBackgroundMessage(payload => {
-  // 아무것도 하지 않음 - FCM이 notification 필드로 알림을 자동 1회 표시
+  const title = payload.data?.title || 'MSDE 대여시스템';
+  const body  = payload.data?.body  || '새 알림이 있어요!';
+  return self.registration.showNotification(title, {
+    body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    vibrate: [200, 100, 200],
+    data: { url: 'https://msderental.netlify.app' }
+  });
 });
 
 self.addEventListener('notificationclick', e => {
@@ -30,7 +37,7 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-const CACHE = 'msde-v13';
+const CACHE = 'msde-v14';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
