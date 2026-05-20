@@ -61,11 +61,13 @@ exports.handler = async (event) => {
           body: JSON.stringify({
             message: {
               token,
-              // notification 필드 없이 data만 전송
-              // → FCM SDK 자동 표시 방지, SW push 이벤트에서만 1번 처리
-              data: { title, body, link: 'https://msderental.netlify.app' },
+              notification: { title, body },
               webpush: {
+                notification: { title, body, icon: '/icon-192.png', badge: '/icon-192.png' },
                 fcm_options: { link: 'https://msderental.netlify.app' }
+              },
+              apns: {
+                payload: { aps: { alert: { title, body }, sound: 'default' } }
               }
             }
           })
