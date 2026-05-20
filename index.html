@@ -73,25 +73,26 @@ async function subscribePush(userName) {
     if(!('serviceWorker' in navigator)) return false;
     const reg = await navigator.serviceWorker.ready;
     const fbUrl = 'https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app';
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-    if (!isIOS && window._fcmMessaging && window._fcmGetToken) {
-      // 안드로이드/데스크톱: Firebase SDK FCM 토큰 (최신 1개만 저장)
+    // 1순위: FCM SDK (안드로이드 + iOS 16.4+ PWA 모두 지원)
+    if (window._fcmMessaging && window._fcmGetToken) {
       try {
         const token = await window._fcmGetToken(window._fcmMessaging, {
           vapidKey: window._fcmVapidKey,
           serviceWorkerRegistration: reg
         });
-        console.log('FCM token:', token);
-        await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
-          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
-        });
-        console.log('FCM 토큰 저장 완료 (단일)');
-        return true;
-      } catch(e) { console.error('FCM token error:', e); }
+        if (token) {
+          console.log('FCM token 획득:', token.slice(0,20)+'...');
+          await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
+          });
+          console.log('FCM 토큰 저장 완료');
+          return true;
+        }
+      } catch(e) { console.warn('FCM 실패, VAPID fallback:', e.message); }
     }
 
-    // iOS: VAPID Web Push (최신 구독 1개만 저장)
+    // 2순위: VAPID Web Push (FCM 불가 환경 fallback)
     if ('PushManager' in window) {
       const existing = await reg.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
@@ -103,7 +104,7 @@ async function subscribePush(userName) {
       await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
         method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subJson)
       });
-      console.log('VAPID 구독 저장 완료 (단일)');
+      console.log('VAPID 구독 저장 완료');
       return true;
     }
     return false;
