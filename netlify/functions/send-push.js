@@ -111,7 +111,11 @@ exports.handler = async (event) => {
 
     await Promise.allSettled(subList.map(async ({ key, sub }) => {
       try {
-        await webpush.sendNotification(sub, JSON.stringify({ title, body }));
+        await webpush.sendNotification(
+          sub,
+          JSON.stringify({ title, body, notification: { title, body } }),
+          { TTL: 86400 }
+        );
         sent++;
       } catch(e) {
         console.error('VAPID error:', e.statusCode, e.message);
