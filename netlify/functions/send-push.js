@@ -159,44 +159,31 @@ exports.handler = async (event) => {
     }));
   }
 
-  // ── VAPID Web Push (iOS) - 내장 crypto로 직접 구현 ───────
+  // ── VAPID Web Push (iOS fallback) ──────────────────────
   const vapidEntries = filterEntries(vapidData);
   if (vapidEntries.length > 0) {
+    const webpush = require('web-push');
+    webpush.setVapidDetails('mailto:sungpil2da@naver.com', VAPID_PUBLIC, VAPID_PRIVATE);
+
     const subList = [];
     for (const [key, val] of vapidEntries) {
       const subs = Array.isArray(val) ? val : (val?.endpoint ? [val] : []);
       for (const sub of subs) {
-        if (sub?.endpoint && sub?.keys) subList.push({ key, sub });
+        if (sub?.endpoint) subList.push({ key, sub });
       }
     }
 
     await Promise.allSettled(subList.map(async ({ key, sub }) => {
       try {
-        const parsed = new URL(sub.endpoint);
-        const audience = `${parsed.protocol}//${parsed.host}`;
-        const jwt = makeVapidJwt(audience);
-        const { body: encBody } = await encryptVapidPayload({ title, body }, sub);
-
-        const r = await fetch(sub.endpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `vapid t=${jwt},k=${VAPID_PUBLIC}`,
-            'Content-Type': 'application/octet-stream',
-            'Content-Encoding': 'aes128gcm',
-            'TTL': '86400',
-          },
-          body: encBody
-        });
-        console.log('VAPID status:', r.status, await r.text());
-        if (r.status === 201 || r.status === 200) {
-          sent++;
-        } else {
-          failed++;
-          if (r.status === 410 || r.status === 404) {
-            await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`, { method:'DELETE' });
-          }
+        await webpush.sendNotification(sub, JSON.stringify({ title, body }));
+        sent++;
+      } catch(e) {
+        console.error('VAPID error:', e.statusCode, e.body);
+        failed++;
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`, { method:'DELETE' });
         }
-      } catch(e) { console.error('VAPID error:', e); failed++; }
+      }
     }));
   }
 
