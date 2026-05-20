@@ -903,6 +903,9 @@ function RentalPage({ onBack, user }) {
         fetch(`${FIREBASE_URL}/betting_users/${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
         fetch(`${FIREBASE_URL}/betting_mybets_${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
         fetch(`${FIREBASE_URL}/messages/${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/fcm_tokens/${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(targetUser.name)}.json`, { method:"DELETE" }),
       ]);
       await load(true);
       showMsg(`✅ ${targetUser.name} 탈퇴 처리 완료`);
@@ -1864,6 +1867,9 @@ function AdminPanelPage({ onBack }) {
         fetch(`${FIREBASE_URL}/betting_users/${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
         fetch(`${FIREBASE_URL}/betting_mybets_${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
         fetch(`${FIREBASE_URL}/messages/${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/fcm_tokens/${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
+        fetch(`${FIREBASE_URL}/push_subscriptions/${encodeURIComponent(u.name)}.json`, { method:"DELETE" }),
       ]);
       await load(true);
       showMsg(`✅ ${u.name} 탈퇴 처리 완료`);
@@ -3708,7 +3714,7 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
                         {isMember ? `팀원 ${(t.members||[]).length}명 · ${t.creator} 생성` : `🔒 초대된 멤버만 접근 가능`}
                       </div>
                     </div>
-                    {(t.creator===user.name||user.isAdmin) && (
+                    {t.creator===user.name && (
                       <button onClick={(e)=>deleteTeam(t,e)}
                         style={{padding:"4px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:11,flexShrink:0}}>삭제</button>
                     )}
