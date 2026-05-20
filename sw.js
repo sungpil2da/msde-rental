@@ -12,18 +12,13 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 중복 알림 방지: FCM SDK가 처리했으면 플래그 설정
-let fcmHandled = false;
-
-// 안드로이드/데스크톱: FCM SDK가 백그라운드 메시지 처리
+// data-only 메시지 → FCM SDK는 자동 알림 표시 안 함
+// onBackgroundMessage에서 직접 showNotification
 messaging.onBackgroundMessage(payload => {
-  fcmHandled = true;
-  // 짧은 시간 후 플래그 리셋
-  setTimeout(() => { fcmHandled = false; }, 3000);
-
-  const { title, body } = payload.notification || {};
-  return self.registration.showNotification(title || 'MSDE 대여시스템', {
-    body: body || '새 알림이 있어요!',
+  const title = payload.data?.title || payload.notification?.title || 'MSDE 대여시스템';
+  const body  = payload.data?.body  || payload.notification?.body  || '새 알림이 있어요!';
+  return self.registration.showNotification(title, {
+    body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [200, 100, 200],
@@ -31,29 +26,51 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-// iOS: FCM SDK가 처리 못한 경우 push 이벤트 직접 처리
+// iOS PWA: FCM SDK onBackgroundMessage가 동작하지 않을 때 push 이벤트로 fallback
 self.addEventListener('push', e => {
-  if (fcmHandled) return; // FCM SDK가 이미 처리했으면 스킵
-
+  // FCM data-only 메시지인지 확인
   let title = 'MSDE 대여시스템';
   let body = '새 알림이 있어요!';
+  let isFcmDataOnly = false;
+
   try {
     if (e.data) {
       const d = e.data.json();
-      title = d.notification?.title || d.title || title;
-      body  = d.notification?.body  || d.body  || body;
+      // FCM data-only: { data: { title, body } }
+      if (d.data?.title) {
+        title = d.data.title;
+        body  = d.data.body || body;
+        isFcmDataOnly = true;
+      }
+      // 일반 notification 페이로드
+      else if (d.notification?.title) {
+        title = d.notification.title;
+        body  = d.notification.body || body;
+      }
+      else if (d.title) {
+        title = d.title;
+        body  = d.body || body;
+      }
     }
   } catch(_) {
     try { body = e.data?.text() || body; } catch(_) {}
   }
 
+  // FCM SDK(안드로이드)는 onBackgroundMessage에서 처리하므로
+  // iOS에서만 push 이벤트가 별도로 처리됨
+  // 단, data-only이면서 FCM이 처리 못한 경우(iOS)에만 showNotification
   e.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      vibrate: [200, 100, 200],
-      data: { url: 'https://msderental.netlify.app' }
+    self.registration.getNotifications().then(existing => {
+      // 0.5초 이내 같은 제목 알림이 이미 있으면 중복 → 스킵
+      const isDuplicate = existing.some(n => n.title === title);
+      if (isDuplicate) return;
+      return self.registration.showNotification(title, {
+        body,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        vibrate: [200, 100, 200],
+        data: { url: 'https://msderental.netlify.app' }
+      });
     })
   );
 });
@@ -70,7 +87,7 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-const CACHE = 'msde-v7';
+const CACHE = 'msde-v8';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
