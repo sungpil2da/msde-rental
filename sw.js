@@ -12,12 +12,12 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// FCM SDK에 백그라운드 메시지 핸들러 등록
-// notification 필드가 있으면 FCM이 자동으로 알림 표시하므로 여기서는 아무것도 안 함
-// (핸들러를 등록해야 FCM SDK가 push 이벤트를 올바르게 처리함)
+// FCM 백그라운드 메시지 핸들러
+// notification 필드가 있으면 FCM SDK가 자동으로 알림을 표시함
+// 여기서 showNotification을 추가로 호출하면 중복됨 → 호출 안 함
 messaging.onBackgroundMessage(payload => {
-  // FCM이 notification 필드로 이미 알림을 표시함 - 추가 showNotification 불필요
-  console.log('[SW] FCM background message received');
+  console.log('[SW] background message:', payload?.notification?.title);
+  // FCM이 notification 필드로 알림을 자동 표시 → 아무것도 안 해도 됨
 });
 
 self.addEventListener('notificationclick', e => {
@@ -32,7 +32,7 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-const CACHE = 'msde-v9';
+const CACHE = 'msde-v10';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
