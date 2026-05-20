@@ -1840,7 +1840,7 @@ function AdminPanelPage({ onBack }) {
         fetch(`${FIREBASE_URL}/rental_logs.json`).then(r=>r.json()),
         fetch(`${FIREBASE_URL}/presence.json`).then(r=>r.json()),
       ]);
-      setAllUsers(uData ? Object.values(uData).sort((a,b)=>a.name.localeCompare(b.name,"ko")) : []);
+      setAllUsers(uData ? Object.values(uData).filter(u=>u?.name).sort((a,b)=>a.name.localeCompare(b.name,"ko")) : []);
       const lArr = lData ? Object.entries(lData).map(([id,v])=>({id,...v})).sort((a,b)=>b.at-a.at) : [];
       setLogs(lArr);
       // 90초 이내 접속자만
@@ -1848,7 +1848,7 @@ function AdminPanelPage({ onBack }) {
       const active = pData ? Object.values(pData).filter(p=>now-p.at<10000) : [];
       // 이름 중복 제거
       const uniqueNames = [...new Map(active.map(p=>[p.name,p])).values()];
-      setOnlineUsers(uniqueNames.sort((a,b)=>a.name.localeCompare(b.name,"ko")));
+      setOnlineUsers(uniqueNames.filter(u=>u?.name).sort((a,b)=>a.name.localeCompare(b.name,"ko")));
     } catch(e){ console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -2660,7 +2660,7 @@ function MessagesPage({ onBack, user }) {
         fetch(`${FIREBASE_URL}/users.json`).then(r=>r.json()),
         fetch(`${FIREBASE_URL}/messages/${encodeURIComponent(user.name)}.json`).then(r=>r.json()),
       ]);
-      setAllUsers(uData ? Object.values(uData).sort((a,b)=>a.name.localeCompare(b.name,"ko")) : []);
+      setAllUsers(uData ? Object.values(uData).filter(u=>u?.name).sort((a,b)=>a.name.localeCompare(b.name,"ko")) : []);
       if (msgData) {
         const arr = Object.entries(msgData).map(([k,v])=>({...v,key:k})).sort((a,b)=>b.createdAt-a.createdAt);
         setMessages(arr);
@@ -3948,14 +3948,20 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
                   {WEEK_DAYS.map((d,di)=>{
                     const slotUsers = getSlotUsers(d,h);
                     const count = slotUsers.length;
-                    const intensity = count/Math.max(members.length,1);
-                    const bg = count===0 ? c.surface
-                      : count===members.length ? `${TC}66`
-                      : `${TC}${Math.round(15+intensity*40).toString(16).padStart(2,"0")}`;
+                    if(count===0) return (
+                      <div key={d} style={{width:CELL_W,height:CELL_H,flexShrink:0,background:c.surface,border:`1px solid ${c.border}`,borderRadius:3,margin:"0 1px"}}/>
+                    );
+                    // 1명: 해당 멤버 색, 2명 이상: 색 혼합 표시
+                    const firstColor = memberColors[members.indexOf(slotUsers[0])%memberColors.length];
+                    const bg = count===1 ? `${firstColor}40` : `${TC}55`;
+                    const borderColor = count===1 ? firstColor : TC;
                     return (
                       <div key={d} title={slotUsers.join(", ")}
-                        style={{width:CELL_W,height:CELL_H,flexShrink:0,background:bg,border:`1px solid ${count>0?TC:c.border}`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        {count>0 && <span style={{fontSize:9,color:TC,fontWeight:700}}>{count}</span>}
+                        style={{width:CELL_W,height:CELL_H,flexShrink:0,background:bg,border:`1px solid ${borderColor}`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                        {count===1
+                          ? <span style={{fontSize:8,color:firstColor,fontWeight:700,textAlign:"center",lineHeight:1.1,padding:"0 1px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"95%"}}>{slotUsers[0]}</span>
+                          : <span style={{fontSize:9,color:"#eef2ff",fontWeight:700}}>{count}명</span>
+                        }
                       </div>
                     );
                   })}
@@ -4240,7 +4246,13 @@ function LoginScreen({ onLogin }) {
       const u = await fbGetUser(name.trim());
       if (!u) return setErr("존재하지 않는 사용자입니다. 회원가입을 먼저 해주세요.");
       if (u.password !== password) return setErr("비밀번호가 틀렸습니다.");
-      onLogin({...u, isAdmin: false});
+      // name 필드 없으면 자동 추가
+      if (!u.name) {
+        await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(name.trim())}/name.json`, {
+          method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(name.trim())
+        });
+      }
+      onLogin({...u, name: name.trim(), isAdmin: false});
     } catch(e) { setErr("오류가 발생했습니다. 다시 시도해주세요."); }
     finally { setLoading(false); }
   }
