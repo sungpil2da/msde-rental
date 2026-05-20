@@ -3231,6 +3231,16 @@ function MyScheduleTab({ grade, user, TC }) {
 
   useEffect(()=>{ load(); }, [weekOffset]);
 
+  // 드래그 중 스크롤 방지 (non-passive)
+  const gridRef = React.useRef(null);
+  useEffect(()=>{
+    const el = gridRef.current;
+    if(!el) return;
+    const prevent = (e) => { if(isDragging) e.preventDefault(); };
+    el.addEventListener('touchmove', prevent, {passive:false});
+    return ()=>el.removeEventListener('touchmove', prevent);
+  }, [isDragging]);
+
   async function saveSlot() {
     if(!inputTitle.trim()) return;
     const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:getTitleColor(inputTitle.trim(), scheduleData) };
@@ -3293,8 +3303,8 @@ function MyScheduleTab({ grade, user, TC }) {
       {/* 시간표 */}
       {loading
         ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
-        : <div style={{overflowX:"auto",padding:"0 8px",userSelect:"none",WebkitOverflowScrolling:"touch"}}>
-            <div style={{display:"inline-block",minWidth:"max-content"}}>
+        : <div ref={gridRef} style={{overflowX:"auto",padding:"0 8px",userSelect:"none",WebkitUserSelect:"none",MozUserSelect:"none",msUserSelect:"none",WebkitOverflowScrolling:"touch"}}>
+            <div style={{display:"inline-block",minWidth:"max-content",userSelect:"none",WebkitUserSelect:"none"}}>
               {/* 헤더 */}
               <div style={{display:"flex",marginBottom:2}}>
                 <div style={{width:LABEL_W,flexShrink:0}}/>
@@ -3360,15 +3370,19 @@ function MyScheduleTab({ grade, user, TC }) {
                         onTouchMove={e=>{
                           const touch = e.touches[0];
                           const dy = Math.abs(touch.clientY - (e.currentTarget._touchStartY||touch.clientY));
+                          if(isDragging && dragDay===d) {
+                            // 드래그 모드: 스크롤 완전 차단
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+                            if(el?.dataset?.hour) setDragEndH(Number(el.dataset.hour));
+                            return;
+                          }
                           // 조금이라도 움직이면 롱프레스 취소
-                          if(dy > 5 && !isDragging) {
+                          if(dy > 5) {
                             clearTimeout(e.currentTarget._longPressTimer);
                             e.currentTarget._moved = true;
                           }
-                          if(!isDragging || dragDay!==d) return;
-                          e.preventDefault();
-                          const el = document.elementFromPoint(touch.clientX, touch.clientY);
-                          if(el?.dataset?.hour) setDragEndH(Number(el.dataset.hour));
                         }}
                         onTouchEnd={e=>{
                           clearTimeout(e.currentTarget._longPressTimer);
@@ -3399,7 +3413,9 @@ function MyScheduleTab({ grade, user, TC }) {
                           border:`1px solid ${inDrag ? TC : entry ? entry.color : c.border}`,
                           borderRadius:3, margin:"0 1px",
                           display:"flex",alignItems:"center",justifyContent:"center",
-                          overflow:"hidden"
+                          overflow:"hidden",
+                          userSelect:"none", WebkitUserSelect:"none",
+                          WebkitTouchCallout:"none"
                         }}>
                         {entry && !inDrag && <span style={{fontSize:8,color:entry.color,fontWeight:700,textAlign:"center",lineHeight:1.2,padding:"0 2px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"100%"}}>{entry.title}</span>}
                       </div>
