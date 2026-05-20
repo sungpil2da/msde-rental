@@ -3179,7 +3179,21 @@ function MyScheduleTab({ grade, user, TC }) {
   const [dragStartH, setDragStartH]     = useState(null);
   const [dragEndH, setDragEndH]         = useState(null);
 
-  const SLOT_COLORS = ["#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070"];
+  const SLOT_COLORS = [
+    "#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070",
+    "#70d0d0","#f090b0","#90c0e0","#d0b070","#a0e0b0","#e0a0d0",
+    "#7090f0","#f0d090","#90e0c0","#e07090","#b0d060","#60b0e0",
+    "#e0b060","#a060c0","#60e0a0","#e06080","#80a0f0","#c0e080"
+  ];
+
+  // 제목 기반 색상 - 같은 제목이면 같은 색, 새 제목이면 안 쓰인 색 배정
+  const getTitleColor = (title, currentData) => {
+    const existing = Object.values(currentData||{}).find(e=>e.title===title);
+    if(existing) return existing.color;
+    const usedColors = new Set(Object.values(currentData||{}).map(e=>e.color));
+    const unused = SLOT_COLORS.find(c=>!usedColors.has(c));
+    return unused || SLOT_COLORS[Object.keys(currentData||{}).length % SLOT_COLORS.length];
+  };
 
   const getWeekStart = (offset=0) => {
     const d = new Date();
@@ -3219,8 +3233,7 @@ function MyScheduleTab({ grade, user, TC }) {
 
   async function saveSlot() {
     if(!inputTitle.trim()) return;
-    const colorIdx = Object.keys(scheduleData).length % SLOT_COLORS.length;
-    const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:SLOT_COLORS[colorIdx] };
+    const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:getTitleColor(inputTitle.trim(), scheduleData) };
     const slots = selectedSlots.length > 0 ? selectedSlots : [selectedSlot];
     const newData = {...scheduleData};
     const updates = [];
@@ -3280,8 +3293,8 @@ function MyScheduleTab({ grade, user, TC }) {
       {/* 시간표 */}
       {loading
         ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
-        : <div style={{overflowX:"auto",padding:"0 8px",userSelect:"none"}}>
-            <div style={{display:"inline-block",minWidth:"100%"}}>
+        : <div style={{overflowX:"auto",padding:"0 8px",userSelect:"none",WebkitOverflowScrolling:"touch"}}>
+            <div style={{display:"inline-block",minWidth:"max-content"}}>
               {/* 헤더 */}
               <div style={{display:"flex",marginBottom:2}}>
                 <div style={{width:LABEL_W,flexShrink:0}}/>
@@ -3333,15 +3346,28 @@ function MyScheduleTab({ grade, user, TC }) {
                           }
                         }}
                         onTouchStart={e=>{
-                          setIsDragging(true); setDragDay(d); setDragStartH(h); setDragEndH(h);
+                          // 터치 시작 위치 기록 (수직/수평 판별용)
+                          e._touchStartY = e.touches[0].clientY;
+                          e._touchStartX = e.touches[0].clientX;
+                          e._isDragIntent = false;
+                          setDragDay(d); setDragStartH(h); setDragEndH(h);
                         }}
                         onTouchMove={e=>{
-                          if(!isDragging||dragDay!==d) return;
                           const touch = e.touches[0];
+                          const dy = Math.abs(touch.clientY - (e.currentTarget._touchStartY||touch.clientY));
+                          const dx = Math.abs(touch.clientX - (e.currentTarget._touchStartX||touch.clientX));
+                          // 수직 이동이 수평보다 크면 스크롤로 처리
+                          if(!e.currentTarget._isDragIntent) {
+                            if(dy > dx + 5) return; // 세로 스크롤
+                            if(dy < dx - 5 || dy > 8) e.currentTarget._isDragIntent = true;
+                          }
+                          if(!e.currentTarget._isDragIntent) return;
+                          e.preventDefault();
+                          if(dragDay!==d) return;
                           const el = document.elementFromPoint(touch.clientX, touch.clientY);
-                          if(el?.dataset?.hour) setDragEndH(Number(el.dataset.hour));
+                          if(el?.dataset?.hour) { setIsDragging(true); setDragEndH(Number(el.dataset.hour)); }
                         }}
-                        onTouchEnd={()=>{
+                        onTouchEnd={e=>{
                           if(isDragging) {
                             const minH = Math.min(dragStartH, dragEndH??dragStartH);
                             const maxH = Math.max(dragStartH, dragEndH??dragStartH);
@@ -3352,7 +3378,16 @@ function MyScheduleTab({ grade, user, TC }) {
                             setSelectedSlot(slots[0]);
                             setInputTitle(slots.length===1?(scheduleData[slots[0].key]?.title||""):"");
                             setInputMemo(slots.length===1?(scheduleData[slots[0].key]?.memo||""):"");
+                          } else if(dragDay===d) {
+                            // 단순 탭
+                            const key = `${d}_${h}`;
+                            const entry = scheduleData[key];
+                            setSelectedSlots([{day:d,hour:h,key}]);
+                            setSelectedSlot({day:d,hour:h,key});
+                            setInputTitle(entry?.title||"");
+                            setInputMemo(entry?.memo||"");
                           }
+                          setDragDay(null);
                         }}
                         data-hour={h}
                         style={{
