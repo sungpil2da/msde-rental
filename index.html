@@ -2987,8 +2987,8 @@ function MessagesPage({ onBack, user }) {
 
 // ── SCHEDULE SHARE TAB ───────────────────────────────────
 const WEEK_DAYS = ["월","화","수","목","금","토","일"];
-const CLASS_PERIODS = Array.from({length:24},(_,i)=>i);
-const PERIOD_TIMES = Object.fromEntries(Array.from({length:24},(_,i)=>[i, `${String(i).padStart(2,"0")}:00`]));
+const CLASS_PERIODS = Array.from({length:16},(_,i)=>i+8);
+const PERIOD_TIMES = Object.fromEntries(Array.from({length:16},(_,i)=>[i+8, `${String(i+8).padStart(2,"0")}:00`]));
 
 function ScheduleShareTab({ grade, user, TC }) {
   const [scheduleMap, setScheduleMap] = useState({});
@@ -3261,9 +3261,9 @@ function MyScheduleTab({ grade, user, TC }) {
     await Promise.all(updates);
   }
 
-  const CELL_W = 52;
+  const CELL_W = 44;
   const CELL_H = 34;
-  const LABEL_W = 46;
+  const LABEL_W = 44;
 
   return (
     <div style={{paddingBottom:60}}>
@@ -3346,40 +3346,44 @@ function MyScheduleTab({ grade, user, TC }) {
                           }
                         }}
                         onTouchStart={e=>{
-                          // 터치 시작 위치 기록 (수직/수평 판별용)
-                          e._touchStartY = e.touches[0].clientY;
-                          e._touchStartX = e.touches[0].clientX;
-                          e._isDragIntent = false;
-                          setDragDay(d); setDragStartH(h); setDragEndH(h);
+                          const touch = e.touches[0];
+                          // 롱프레스 타이머 (300ms 후 드래그 모드 진입)
+                          const timer = setTimeout(()=>{
+                            setIsDragging(true);
+                            setDragDay(d); setDragStartH(h); setDragEndH(h);
+                            if(navigator.vibrate) navigator.vibrate(30);
+                          }, 300);
+                          e.currentTarget._longPressTimer = timer;
+                          e.currentTarget._touchStartY = touch.clientY;
+                          e.currentTarget._moved = false;
                         }}
                         onTouchMove={e=>{
                           const touch = e.touches[0];
                           const dy = Math.abs(touch.clientY - (e.currentTarget._touchStartY||touch.clientY));
-                          const dx = Math.abs(touch.clientX - (e.currentTarget._touchStartX||touch.clientX));
-                          // 수직 이동이 수평보다 크면 스크롤로 처리
-                          if(!e.currentTarget._isDragIntent) {
-                            if(dy > dx + 5) return; // 세로 스크롤
-                            if(dy < dx - 5 || dy > 8) e.currentTarget._isDragIntent = true;
+                          // 조금이라도 움직이면 롱프레스 취소
+                          if(dy > 5 && !isDragging) {
+                            clearTimeout(e.currentTarget._longPressTimer);
+                            e.currentTarget._moved = true;
                           }
-                          if(!e.currentTarget._isDragIntent) return;
+                          if(!isDragging || dragDay!==d) return;
                           e.preventDefault();
-                          if(dragDay!==d) return;
                           const el = document.elementFromPoint(touch.clientX, touch.clientY);
-                          if(el?.dataset?.hour) { setIsDragging(true); setDragEndH(Number(el.dataset.hour)); }
+                          if(el?.dataset?.hour) setDragEndH(Number(el.dataset.hour));
                         }}
                         onTouchEnd={e=>{
+                          clearTimeout(e.currentTarget._longPressTimer);
                           if(isDragging) {
                             const minH = Math.min(dragStartH, dragEndH??dragStartH);
                             const maxH = Math.max(dragStartH, dragEndH??dragStartH);
                             const slots = [];
                             for(let i=minH;i<=maxH;i++) slots.push({day:dragDay,hour:i,key:`${dragDay}_${i}`});
-                            setIsDragging(false);
+                            setIsDragging(false); setDragDay(null);
                             setSelectedSlots(slots);
                             setSelectedSlot(slots[0]);
                             setInputTitle(slots.length===1?(scheduleData[slots[0].key]?.title||""):"");
                             setInputMemo(slots.length===1?(scheduleData[slots[0].key]?.memo||""):"");
-                          } else if(dragDay===d) {
-                            // 단순 탭
+                          } else if(!e.currentTarget._moved) {
+                            // 단순 탭 (롱프레스 없이 바로 놓은 경우)
                             const key = `${d}_${h}`;
                             const entry = scheduleData[key];
                             setSelectedSlots([{day:d,hour:h,key}]);
@@ -3387,7 +3391,6 @@ function MyScheduleTab({ grade, user, TC }) {
                             setInputTitle(entry?.title||"");
                             setInputMemo(entry?.memo||"");
                           }
-                          setDragDay(null);
                         }}
                         data-hour={h}
                         style={{
@@ -4120,12 +4123,12 @@ function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
       sub: "대여사업 물품 / 건반 / 기타",
     },
     {
-      id: "betting",
-      emoji: "🎰",
-      title: "미니게임",
-      desc: "매일 500코인 지급 · 주간 랭킹",
-      color: c.bet,
-      sub: user.isAdmin ? "관리자 모드" : `내 코인: ${(user.coins||0).toLocaleString()}`,
+      id: "teamproject",
+      emoji: "📅",
+      title: "팀플",
+      desc: "팀 구성 및 일정 공유",
+      color: "#a0d0a0",
+      sub: "과목별 팀 관리",
     },
     {
       id: "food",
@@ -4136,12 +4139,12 @@ function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
       sub: "랜덤 뽑기",
     },
     {
-      id: "teamproject",
-      emoji: "📅",
-      title: "팀플",
-      desc: "팀 구성 및 일정 공유",
-      color: "#a0d0a0",
-      sub: "과목별 팀 관리",
+      id: "betting",
+      emoji: "🎰",
+      title: "미니게임",
+      desc: "매일 500코인 지급 · 주간 랭킹",
+      color: c.bet,
+      sub: user.isAdmin ? "관리자 모드" : `내 코인: ${(user.coins||0).toLocaleString()}`,
     },
     {
       id: "suggest",
