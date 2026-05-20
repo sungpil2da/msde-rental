@@ -7,18 +7,99 @@ const PRIVATE_KEY  = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFA
 const VAPID_PUBLIC  = 'BFR6cLQKBHSaFAHeEBrvDYu-Oc-mykF3UUT1Ism-c4DII9yTegFTBekytVYdgm4S20Ek5CDCTuJEGaMI0PF4Mzc';
 const VAPID_PRIVATE = 'XzRaGLRGtP7W_T1j9r0y5m8S5kuGbxUESU-teNURMf4';
 
+const crypto = require('crypto');
+
+// ── 유틸 ──────────────────────────────────────────────────
+function b64url(v) {
+  return (Buffer.isBuffer(v) ? v : Buffer.from(v))
+    .toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function fromB64url(s) {
+  const p = '='.repeat((4 - s.length % 4) % 4);
+  return Buffer.from((s + p).replace(/-/g,'+').replace(/_/g,'/'), 'base64');
+}
+
+// ── FCM Access Token (Google OAuth2) ─────────────────────
 async function getAccessToken() {
   const now = Math.floor(Date.now() / 1000);
   const encode = obj => Buffer.from(JSON.stringify(obj)).toString('base64url');
-  const signingInput = `${encode({alg:'RS256',typ:'JWT'})}.${encode({iss:SA_EMAIL,scope:'https://www.googleapis.com/auth/firebase.messaging',aud:TOKEN_URI,iat:now,exp:now+3600})}`;
-  const crypto = require('crypto');
+  const sigInput = `${encode({alg:'RS256',typ:'JWT'})}.${encode({
+    iss:SA_EMAIL, scope:'https://www.googleapis.com/auth/firebase.messaging',
+    aud:TOKEN_URI, iat:now, exp:now+3600
+  })}`;
   const sign = crypto.createSign('RSA-SHA256');
-  sign.update(signingInput);
-  const jwt = `${signingInput}.${sign.sign(PRIVATE_KEY,'base64url')}`;
-  const res = await fetch(TOKEN_URI, {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`});
+  sign.update(sigInput);
+  const jwt = `${sigInput}.${sign.sign(PRIVATE_KEY,'base64url')}`;
+  const res = await fetch(TOKEN_URI, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:`grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+  });
   return (await res.json()).access_token;
 }
 
+// ── VAPID JWT (Apple Web Push 호환, 내장 crypto 사용) ────
+function makeVapidJwt(audience) {
+  // PKCS8 DER 포맷으로 EC private key 생성
+  const privBuf = fromB64url(VAPID_PRIVATE);
+  const der = Buffer.concat([
+    Buffer.from('308141020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420','hex'),
+    privBuf
+  ]);
+  const privKey = crypto.createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+
+  const now = Math.floor(Date.now() / 1000);
+  const hdr = b64url(JSON.stringify({typ:'JWT', alg:'ES256'}));
+  const pld = b64url(JSON.stringify({aud: audience, exp: now + 43200, sub: 'https://msderental.netlify.app'}));
+  const input = hdr + '.' + pld;
+  const sig = crypto.sign('SHA256', Buffer.from(input), {key: privKey, dsaEncoding: 'ieee-p1363'});
+  return input + '.' + b64url(sig);
+}
+
+// ── VAPID 암호화 (AES-128-GCM, RFC 8291) ─────────────────
+async function encryptVapidPayload(payload, sub) {
+  const plaintext = Buffer.from(JSON.stringify(payload));
+  const subPubKey = fromB64url(sub.keys.p256dh);
+  const subAuth   = fromB64url(sub.keys.auth);
+
+  // 서버 EC 키 쌍 생성
+  const serverKey = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const serverPubDer = serverKey.publicKey.export({ type: 'spki', format: 'der' });
+  const serverPubRaw = serverPubDer.slice(-65); // 마지막 65바이트가 raw public key
+
+  // ECDH
+  const subKeyObj = crypto.createPublicKey({ key: Buffer.concat([
+    Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200','hex'), subPubKey
+  ]), format: 'der', type: 'spki' });
+  const sharedSecret = crypto.diffieHellman({ privateKey: serverKey.privateKey, publicKey: subKeyObj });
+
+  // HKDF
+  function hkdf(salt, ikm, info, len) {
+    const prk = crypto.createHmac('sha256', salt).update(ikm).digest();
+    const T = crypto.createHmac('sha256', prk).update(Buffer.concat([info, Buffer.from([1])])).digest();
+    return T.slice(0, len);
+  }
+
+  const salt = crypto.randomBytes(16);
+  const prk  = hkdf(subAuth, sharedSecret, Buffer.concat([
+    Buffer.from('WebPush: info\x00'), subPubKey, serverPubRaw
+  ]), 32);
+  const cek  = hkdf(salt, prk, Buffer.from('Content-Encoding: aes128gcm\x00'), 16);
+  const nonce = hkdf(salt, prk, Buffer.from('Content-Encoding: nonce\x00'), 12);
+
+  // AES-128-GCM 암호화
+  const cipher = crypto.createCipheriv('aes-128-gcm', cek, nonce);
+  // padding: 2바이트 길이 + plaintext + \x02
+  const padded = Buffer.concat([plaintext, Buffer.from([2])]);
+  const encrypted = Buffer.concat([cipher.update(padded), cipher.final(), cipher.getAuthTag()]);
+
+  // RFC 8291 헤더: salt(16) + rs(4=4096) + keyidlen(1) + serverPubRaw(65)
+  const rs = Buffer.alloc(4); rs.writeUInt32BE(4096);
+  const header = Buffer.concat([salt, rs, Buffer.from([65]), serverPubRaw]);
+
+  return { body: Buffer.concat([header, encrypted]), salt };
+}
+
+// ── 메인 핸들러 ───────────────────────────────────────────
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   const { title, body, secret, targetUser } = JSON.parse(event.body || '{}');
@@ -29,7 +110,6 @@ exports.handler = async (event) => {
     fetch(`${FIREBASE_URL}/push_subscriptions.json`).then(r=>r.json()),
   ]);
 
-  // 유저 필터 함수
   const filterEntries = (data) => {
     if (!data) return [];
     return targetUser
@@ -43,16 +123,13 @@ exports.handler = async (event) => {
   const fcmEntries = filterEntries(fcmData);
   if (fcmEntries.length > 0) {
     const accessToken = await getAccessToken();
-
-    // 토큰이 단일 문자열이든 배열이든 모두 처리
-    const tokenList = []; // [{key, token}]
+    const tokenList = [];
     for (const [key, val] of fcmEntries) {
       const tokens = Array.isArray(val) ? val : (typeof val === 'string' ? [val] : []);
       for (const token of tokens) {
         if (typeof token === 'string' && token.length > 10) tokenList.push({ key, token });
       }
     }
-
     await Promise.allSettled(tokenList.map(async ({ key, token }) => {
       try {
         const r = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
@@ -63,10 +140,8 @@ exports.handler = async (event) => {
               token,
               notification: { title, body },
               webpush: {
+                notification: { title, body, icon: '/icon-192.png', badge: '/icon-192.png' },
                 fcm_options: { link: 'https://msderental.netlify.app' }
-              },
-              apns: {
-                payload: { aps: { alert: { title, body }, sound: 'default', badge: 1 } }
               }
             }
           })
@@ -76,59 +151,55 @@ exports.handler = async (event) => {
         if (result.error) {
           failed++;
           const errCode = result.error.code || result.error.status || '';
-          // 만료/유효하지 않은 토큰은 Firebase에서 삭제
-          if (['404', 404, 'NOT_FOUND', 'UNREGISTERED'].includes(errCode)) {
-            const stored = await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`).then(r=>r.json());
-            const arr = Array.isArray(stored) ? stored : (stored ? [stored] : []);
-            const cleaned = arr.filter(t => t !== token);
-            if (cleaned.length === 0) {
-              await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`, { method:'DELETE' });
-            } else {
-              await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`, {
-                method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(cleaned)
-              });
-            }
+          if (['404',404,'NOT_FOUND','UNREGISTERED'].includes(errCode)) {
+            await fetch(`${FIREBASE_URL}/fcm_tokens/${key}.json`, { method:'DELETE' });
           }
-        } else {
-          sent++;
-        }
+        } else { sent++; }
       } catch(e) { console.error('FCM error:', e); failed++; }
     }));
   }
 
-  // ── VAPID Web Push (iOS Safari) ───────────────────────────
+  // ── VAPID Web Push (iOS) - 내장 crypto로 직접 구현 ───────
   const vapidEntries = filterEntries(vapidData);
   if (vapidEntries.length > 0) {
-    const webpush = require('web-push');
-    webpush.setVapidDetails('mailto:sungpil2da@naver.com', VAPID_PUBLIC, VAPID_PRIVATE);
-
-    // 구독이 배열로 저장된 경우도 처리
     const subList = [];
     for (const [key, val] of vapidEntries) {
       const subs = Array.isArray(val) ? val : (val?.endpoint ? [val] : []);
       for (const sub of subs) {
-        if (sub?.endpoint) subList.push({ key, sub });
+        if (sub?.endpoint && sub?.keys) subList.push({ key, sub });
       }
     }
 
     await Promise.allSettled(subList.map(async ({ key, sub }) => {
       try {
-        await webpush.sendNotification(
-          sub,
-          JSON.stringify({ title, body, notification: { title, body } }),
-          { TTL: 86400 }
-        );
-        sent++;
-      } catch(e) {
-        console.error('VAPID error:', e.statusCode, e.message);
-        failed++;
-        if (e.statusCode === 410 || e.statusCode === 404) {
-          await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`, { method:'DELETE' });
+        const parsed = new URL(sub.endpoint);
+        const audience = `${parsed.protocol}//${parsed.host}`;
+        const jwt = makeVapidJwt(audience);
+        const { body: encBody } = await encryptVapidPayload({ title, body }, sub);
+
+        const r = await fetch(sub.endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `vapid t=${jwt},k=${VAPID_PUBLIC}`,
+            'Content-Type': 'application/octet-stream',
+            'Content-Encoding': 'aes128gcm',
+            'TTL': '86400',
+          },
+          body: encBody
+        });
+        console.log('VAPID status:', r.status, await r.text());
+        if (r.status === 201 || r.status === 200) {
+          sent++;
+        } else {
+          failed++;
+          if (r.status === 410 || r.status === 404) {
+            await fetch(`${FIREBASE_URL}/push_subscriptions/${key}.json`, { method:'DELETE' });
+          }
         }
-      }
+      } catch(e) { console.error('VAPID error:', e); failed++; }
     }));
   }
 
-  console.log(`send-push done: sent=${sent} failed=${failed}`);
+  console.log(`send-push: sent=${sent} failed=${failed}`);
   return { statusCode: 200, body: JSON.stringify({ sent, failed }) };
 };
