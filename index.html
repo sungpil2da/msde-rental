@@ -3484,6 +3484,25 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
   const [syncing, setSyncing]   = useState(false);
   const [err, setErr]           = useState("");
   const [teamTab, setTeamTab]   = useState("progress");
+  const [onlineMembers, setOnlineMembers] = useState([]);
+
+  // 팀 내 접속 중인 멤버 체크 (10초마다 갱신)
+  useEffect(()=>{
+    const checkOnline = async () => {
+      try {
+        const res = await fetch(`${FIREBASE_URL}/presence.json`);
+        const data = await res.json() || {};
+        const now = Date.now();
+        const activeNames = Object.values(data)
+          .filter(p => now - p.at < 15000)
+          .map(p => p.name);
+        setOnlineMembers([...new Set(activeNames)]);
+      } catch(e) {}
+    };
+    checkOnline();
+    const timer = setInterval(checkOnline, 10000);
+    return ()=>clearInterval(timer);
+  }, []);
   const inp = {width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
 
   // 학년 저장
@@ -3511,8 +3530,8 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
 
   // 팀 상세 로드
   async function loadTeam(t) {
-    // 멤버가 아니면 접근 불가
-    if(!(t.members||[]).includes(user.name) && !user.isAdmin) return;
+    // 멤버가 아니면 접근 불가 (관리자도 예외 없음)
+    if(!(t.members||[]).includes(user.name)) return;
     setLoading(true);
     setTeam(t);
     setMembers(t.members||[]);
@@ -3700,7 +3719,7 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
                 아직 팀이 없어요
               </div>
             : teams.map((t,i)=>{
-                const isMember = (t.members||[]).includes(user.name) || user.isAdmin;
+                const isMember = (t.members||[]).includes(user.name);
                 return (
                   <div key={i} style={{background:c.surface,border:`1px solid ${isMember?c.border:c.border+"66"}`,borderRadius:12,padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12,opacity:isMember?1:0.45}}
                     onMouseEnter={e=>{if(isMember)e.currentTarget.style.borderColor=TC+"66";}}
@@ -3741,12 +3760,18 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
           </div>
           <p style={{margin:0,fontSize:11,color:c.muted}}>{subject} · 팀원 {members.length}명</p>
         </div>
-        {/* 팀원 칩 */}
-        <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:120}}>
-          {members.slice(0,3).map((m,i)=>(
-            <span key={i} style={{fontSize:10,background:`${TC}20`,border:`1px solid ${TC}33`,borderRadius:20,padding:"2px 7px",color:TC}}>{m}</span>
+        {/* 접속 중인 팀원 칩 */}
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"flex-end",maxWidth:130}}>
+          {members.filter(m=>onlineMembers.includes(m)).slice(0,3).map((m,i)=>(
+            <span key={i} style={{fontSize:10,background:`${TC}20`,border:`1px solid ${TC}44`,borderRadius:20,padding:"2px 7px",color:TC,display:"flex",alignItems:"center",gap:3}}>
+              <span style={{width:5,height:5,borderRadius:"50%",background:TC,display:"inline-block"}}/>
+              {m}
+            </span>
           ))}
-          {members.length>3 && <span style={{fontSize:10,color:c.muted}}>+{members.length-3}</span>}
+          {members.filter(m=>onlineMembers.includes(m)).length>3 &&
+            <span style={{fontSize:10,color:c.muted}}>+{members.filter(m=>onlineMembers.includes(m)).length-3}</span>}
+          {members.filter(m=>onlineMembers.includes(m)).length===0 &&
+            <span style={{fontSize:10,color:c.muted}}>접속자 없음</span>}
         </div>
       </div>
 
@@ -3786,6 +3811,7 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
   const [newStatus, setNewStatus] = useState("진행중"); // 진행중 | 완료 | 예정
   const [syncing, setSyncing]   = useState(false);
   const [loading, setLoading]   = useState(true);
+  const [editLog, setEditLog]   = useState(null); // 수정 중인 로그
 
   const STATUS_COLORS = {"예정":"#60c0f0","진행중":"#f0c060","완료":"#a0d0a0"};
   const fbBase = `teams/${encodeURIComponent(subject)}/${team.key}`;
@@ -3793,7 +3819,7 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
   const load = async () => {
     const res = await fetch(`${FIREBASE_URL}/${fbBase}/progress.json`);
     const data = await res.json();
-    const arr = data ? Object.entries(data).map(([k,v])=>({...v,key:k})).sort((a,b)=>a.date.localeCompare(b.date)) : [];
+    const arr = data ? Object.entries(data).map(([k,v])=>({...v,key:k})).sort((a,b)=>b.date.localeCompare(a.date)) : [];
     setLogs(arr); setLoading(false);
   };
   useEffect(()=>{ load(); },[]);
@@ -3806,6 +3832,16 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
       body:JSON.stringify({ date:newDate, desc:newDesc.trim(), status:newStatus, by:user.name, createdAt:Date.now() })
     });
     setNewDesc(""); setSyncing(false); load();
+  }
+
+  async function updateLog() {
+    if(!newDesc.trim()) return;
+    setSyncing(true);
+    await fetch(`${FIREBASE_URL}/${fbBase}/progress/${editLog.key}.json`, {
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ desc:newDesc.trim(), date:newDate, status:newStatus })
+    });
+    setEditLog(null); setNewDesc(""); setSyncing(false); load();
   }
 
   async function deleteLog(key) {
@@ -3832,7 +3868,7 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
             <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:`${TC}15`,border:`1px solid ${TC}33`,borderRadius:20,padding:"4px 10px"}}>
               <span style={{fontSize:12,color:TC,fontWeight:600}}>{m}</span>
               {m===team.creator && <span style={{fontSize:10}}>👑</span>}
-              {m!==team.creator && (user.name===team.creator||user.isAdmin) && (
+              {m!==team.creator && user.name===team.creator && (
                 <button onClick={()=>removeMember(m)} style={{background:"none",border:"none",color:c.error,cursor:"pointer",fontSize:12,padding:0}}>×</button>
               )}
             </div>
@@ -3851,7 +3887,10 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
 
       {/* 진행상황 입력 */}
       <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:10}}>📋 진행상황 추가</div>
+        <div style={{fontSize:13,fontWeight:700,color:TC,marginBottom:10}}>
+          {editLog ? "✏️ 진행상황 수정" : "📋 진행상황 추가"}
+          {editLog && <button onClick={()=>{setEditLog(null);setNewDesc("");setNewDate(new Date().toISOString().slice(0,10));setNewStatus("진행중");}} style={{marginLeft:8,fontSize:11,color:c.muted,background:"none",border:"none",cursor:"pointer"}}>취소</button>}
+        </div>
         <div style={{display:"flex",gap:8,marginBottom:8}}>
           <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)} style={{...inp,flex:1,marginBottom:0}}/>
           <select value={newStatus} onChange={e=>setNewStatus(e.target.value)}
@@ -3863,9 +3902,9 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
         </div>
         <textarea value={newDesc} onChange={e=>setNewDesc(e.target.value)} placeholder="진행 내용 입력 (예: 주제 선정 완료)" rows={10}
           style={{...inp,marginBottom:8,resize:"vertical",minHeight:200}}/>
-        <button onClick={addLog} disabled={syncing||!newDesc.trim()}
+        <button onClick={editLog ? updateLog : addLog} disabled={syncing||!newDesc.trim()}
           style={{width:"100%",padding:"10px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:10,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-          {syncing?"등록 중...":"등록"}
+          {syncing ? (editLog?"수정 중...":"등록 중...") : (editLog?"수정 완료":"등록")}
         </button>
       </div>
 
@@ -3887,16 +3926,20 @@ function TeamProgressTab({ team, subject, user, TC, members, allUsers, search, s
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontSize:11,color:c.muted}}>{l.date}</span>
-                      <button onClick={()=>toggleStatus(l)}
-                        style={{fontSize:10,background:`${STATUS_COLORS[l.status]}20`,border:`1px solid ${STATUS_COLORS[l.status]}44`,borderRadius:20,padding:"1px 8px",color:STATUS_COLORS[l.status],cursor:"pointer",fontWeight:700}}>
+                      <button onClick={()=>{ if(l.by===user.name) toggleStatus(l); }}
+                        style={{fontSize:10,background:`${STATUS_COLORS[l.status]}20`,border:`1px solid ${STATUS_COLORS[l.status]}44`,borderRadius:20,padding:"1px 8px",color:STATUS_COLORS[l.status],cursor:l.by===user.name?"pointer":"default",fontWeight:700}}>
                         {l.status}
                       </button>
                     </div>
-                    {(l.by===user.name||user.isAdmin) && (
-                      <button onClick={()=>deleteLog(l.key)} style={{padding:"2px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:10}}>삭제</button>
+                    {l.by===user.name && (
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>{setEditLog(l);setNewDesc(l.desc);setNewDate(l.date);setNewStatus(l.status);window.scrollTo({top:0,behavior:"smooth"});}}
+                          style={{padding:"2px 8px",background:`${TC}15`,border:`1px solid ${TC}33`,borderRadius:6,color:TC,cursor:"pointer",fontSize:10}}>수정</button>
+                        <button onClick={()=>deleteLog(l.key)} style={{padding:"2px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,cursor:"pointer",fontSize:10}}>삭제</button>
+                      </div>
                     )}
                   </div>
-                  <div style={{fontSize:13,color:c.text}}>{l.desc}</div>
+                  <div style={{fontSize:13,color:c.text,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>{l.desc}</div>
                   <div style={{fontSize:10,color:c.muted,marginTop:3}}>{l.by}</div>
                 </div>
               </div>
@@ -4117,7 +4160,7 @@ function TeamLinksTab({ team, subject, user, TC }) {
                 </div>
                 <a href={l.url} target="_blank" rel="noopener noreferrer"
                   style={{padding:"6px 12px",background:`${TC}15`,border:`1px solid ${TC}33`,borderRadius:8,color:TC,cursor:"pointer",fontSize:12,fontWeight:700,textDecoration:"none",flexShrink:0}}>열기</a>
-                {(l.by===user.name||user.isAdmin) && (
+                {l.by===user.name && (
                   <button onClick={()=>deleteLink(l.key)} style={{padding:"6px 8px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:8,color:c.error,cursor:"pointer",fontSize:11,flexShrink:0}}>삭제</button>
                 )}
               </div>
