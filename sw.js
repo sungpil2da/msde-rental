@@ -12,17 +12,41 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// FCM 백그라운드 메시지 처리 (onBackgroundMessage만 사용 - push 이벤트와 중복 방지)
-// Firebase SDK가 push 이벤트를 내부적으로 처리하므로 별도 push 리스너 추가 X
+// FCM 백그라운드 메시지 (안드로이드/데스크톱)
 messaging.onBackgroundMessage(payload => {
   const { title, body } = payload.notification || {};
-  return self.registration.showNotification(title || 'MSDE 대여시스템', {
+  self.registration.showNotification(title || 'MSDE 대여시스템', {
     body: body || '새 알림이 있어요!',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [200, 100, 200],
     data: { url: 'https://msderental.netlify.app' }
   });
+});
+
+// VAPID Web Push (iOS Safari) - push 이벤트 직접 처리
+self.addEventListener('push', e => {
+  let title = 'MSDE 대여시스템';
+  let body = '새 알림이 있어요!';
+  try {
+    if (e.data) {
+      // JSON 파싱 시도
+      const d = e.data.json();
+      title = d.title || d.notification?.title || title;
+      body  = d.body  || d.notification?.body  || body;
+    }
+  } catch(err) {
+    try { body = e.data.text(); } catch(_) {}
+  }
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      data: { url: 'https://msderental.netlify.app' }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', e => {
@@ -38,7 +62,7 @@ self.addEventListener('notificationclick', e => {
 });
 
 // 캐시 버전 업 → 강제 업데이트
-const CACHE = 'msde-v6';
+const CACHE = 'msde-v5';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
