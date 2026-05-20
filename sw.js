@@ -12,12 +12,10 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// data-only 메시지 → FCM/iOS 자동 표시 없음 → 여기서만 1번 showNotification
 messaging.onBackgroundMessage(payload => {
-  const title = payload.data?.title || 'MSDE 대여시스템';
-  const body  = payload.data?.body  || '새 알림이 있어요!';
-  return self.registration.showNotification(title, {
-    body,
+  const { title, body } = payload.notification || {};
+  self.registration.showNotification(title || 'MSDE 대여시스템', {
+    body: body || '새 알림이 있어요!',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [200, 100, 200],
@@ -37,7 +35,7 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-const CACHE = 'msde-v14';
+const CACHE = 'msde-v12';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
