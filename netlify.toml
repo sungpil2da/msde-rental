@@ -1,2 +1,6 @@
 [build]
   functions = "netlify/functions"
+
+# 팀플 사전 알림: 매 시간 정각 실행 (UTC, KST = UTC+9)
+[functions."schedule-notify"]
+  schedule = "0 * * * *"
