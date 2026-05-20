@@ -3293,13 +3293,6 @@ function MyScheduleTab({ grade, user, TC }) {
           style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>다음 ›</button>
       </div>
 
-      {/* 공유 버튼 (추후 활성화) */}
-      <div style={{padding:"8px 16px",display:"flex",justifyContent:"flex-end"}}>
-        <button disabled style={{padding:"5px 14px",background:"none",border:`1px solid ${c.border}`,borderRadius:20,color:c.muted,fontSize:12,cursor:"not-allowed",opacity:0.5}}>
-          🔗 팀원과 공유 (준비 중)
-        </button>
-      </div>
-
       {/* 시간표 */}
       {loading
         ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
@@ -3427,7 +3420,9 @@ function MyScheduleTab({ grade, user, TC }) {
           </div>
       }
 
-      {/* 일정 입력 모달 */}
+      <div style={{padding:"10px 16px",fontSize:11,color:c.muted,textAlign:"center"}}>
+        💡 칸을 탭하면 일정 추가 · 꾹 누른 채 내리면 여러 칸 한번에 선택
+      </div>
       {selectedSlot && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:9999,padding:"0 0 20px"}}
           onClick={e=>{if(e.target===e.currentTarget){setSelectedSlot(null);setSelectedSlots([]);setInputTitle("");setInputMemo("");}}}>
