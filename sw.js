@@ -12,7 +12,6 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// 백그라운드 푸시 수신
 messaging.onBackgroundMessage(payload => {
   const { title, body } = payload.notification || {};
   self.registration.showNotification(title || 'MSDE 대여시스템', {
@@ -24,7 +23,6 @@ messaging.onBackgroundMessage(payload => {
   });
 });
 
-// 알림 클릭 시 앱 열기
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(
@@ -35,7 +33,14 @@ self.addEventListener('notificationclick', e => {
   );
 });
 
-// 캐시
-const CACHE = 'msde-v3';
+// 캐시 버전 업 → 강제 업데이트
+const CACHE = 'msde-v4';
 self.addEventListener('install', e => { self.skipWaiting(); });
-self.addEventListener('activate', e => { self.clients.claim(); });
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
