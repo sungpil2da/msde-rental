@@ -4367,7 +4367,7 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
 
                     const firstColor = memberColors[members.indexOf(slotUsers[0])%memberColors.length];
                     // 2명 이상 겹치는 슬롯: 동일 색상
-                    const overlapColor = count >= 2 ? "#ff9f43" : firstColor;
+                    const overlapColor = count >= 2 ? "#ff4757" : firstColor;
                     const bg = count===1 ? `${firstColor}40` : `${overlapColor}30`;
                     const borderColor = isTeamPlan ? TC : (count===1 ? firstColor : overlapColor);
                     const textColor = count===1 ? firstColor : overlapColor;
