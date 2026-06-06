@@ -73,25 +73,28 @@ async function subscribePush(userName) {
     if(!('serviceWorker' in navigator)) return false;
     const reg = await navigator.serviceWorker.ready;
     const fbUrl = 'https://betmsde-4443e-default-rtdb.asia-southeast1.firebasedatabase.app';
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-    // FCM 먼저 시도 (iOS 16.4+ PWA도 지원)
-    if (window._fcmMessaging && window._fcmGetToken) {
+    if (!isIOS && window._fcmMessaging && window._fcmGetToken) {
+      // 안드로이드/데스크톱: Firebase SDK FCM 토큰
       try {
         const token = await window._fcmGetToken(window._fcmMessaging, {
           vapidKey: window._fcmVapidKey,
           serviceWorkerRegistration: reg
         });
-        if (token) {
-          await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
-            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(token)
-          });
-          console.log('FCM 토큰 저장 완료');
-          return true;
-        }
-      } catch(e) { console.warn('FCM 실패, VAPID fallback:', e.message); }
+        console.log('FCM token:', token);
+        const existingF = await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`).then(r=>r.json());
+        let tokens = Array.isArray(existingF) ? existingF : (existingF ? [existingF] : []);
+        if (!tokens.includes(token)) tokens.push(token);
+        await fetch(`${fbUrl}/fcm_tokens/${encodeURIComponent(userName)}.json`, {
+          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(tokens)
+        });
+        console.log('FCM 토큰 저장 완료:', tokens.length, '개');
+        return true;
+      } catch(e) { console.error('FCM token error:', e); }
     }
 
-    // FCM 실패 시 VAPID fallback
+    // iOS / FCM 실패 시: VAPID Web Push
     if ('PushManager' in window) {
       const existing = await reg.pushManager.getSubscription();
       if (existing) await existing.unsubscribe();
@@ -100,10 +103,16 @@ async function subscribePush(userName) {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
       const subJson = sub.toJSON();
+      const existingV = await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`).then(r=>r.json());
+      // 기존이 배열이면 추가, 단일이면 배열로, 없으면 새로
+      let subs = Array.isArray(existingV) ? existingV : (existingV ? [existingV] : []);
+      // 동일 endpoint 중복 제거
+      subs = subs.filter(s => s.endpoint !== subJson.endpoint);
+      subs.push(subJson);
       await fetch(`${fbUrl}/push_subscriptions/${encodeURIComponent(userName)}.json`, {
-        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subJson)
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(subs)
       });
-      console.log('VAPID 구독 저장 완료');
+      console.log('VAPID 구독 저장 완료:', subs.length, '개');
       return true;
     }
     return false;
@@ -1449,7 +1458,15 @@ function BettingPage({ onBack, user, onUserUpdate }) {
                   const won = myBet && myBet.choice===bet.result;
                   return (
                     <div key={bet.id} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:10,opacity:0.8}}>
-                      <div style={{fontSize:14,fontWeight:700,color:c.text,marginBottom:6}}>{bet.title}</div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                        <div style={{fontSize:14,fontWeight:700,color:c.text,flex:1,paddingRight:8}}>{bet.title}</div>
+                        {user.isAdmin && (
+                          <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
+                            style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+                            🗑️
+                          </button>
+                        )}
+                      </div>
                       <div style={{fontSize:12,color:c.muted,marginBottom:myBet?8:0}}>결과: <strong style={{color:c.text}}>{bet.result==="yes"?"YES":"NO"}</strong></div>
                       {myBet&&(
                         <div style={{fontSize:12,padding:"6px 10px",borderRadius:8,background:won?`${c.success}15`:`${c.error}15`,border:`1px solid ${won?c.success+"44":c.error+"44"}`,color:won?c.success:c.error}}>
@@ -1714,10 +1731,12 @@ function BettingPage({ onBack, user, onUserUpdate }) {
                     <div key={bet.id} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,padding:"14px",marginBottom:10}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
                         <div style={{fontSize:14,fontWeight:700,color:c.text,flex:1,paddingRight:8}}>{bet.title}</div>
-                        <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
-                          style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-                          🗑️
-                        </button>
+                        {user.isAdmin && (
+                          <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
+                            style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+                            🗑️
+                          </button>
+                        )}
                       </div>
                       <div style={{fontSize:12,color:c.muted,marginBottom:10}}>참여 {partCount}명 · {bet.status==="open"?"진행중":"마감됨"}</div>
                       {bet.status==="open"&&(
@@ -1911,19 +1930,7 @@ function AdminPanelPage({ onBack }) {
         {/* 접속중 */}
         {tab==="online" && (
           <div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-              <div style={{fontSize:11,color:c.muted}}>현재 {onlineUsers.length}명 접속 중 (10초 기준)</div>
-              <button onClick={async()=>{
-                if(!window.confirm("접속 중인 모든 사용자를 강제 로그아웃 시킬까요?")) return;
-                await fetch(`${FIREBASE_URL}/force_logout.json`,{
-                  method:"PUT",headers:{"Content-Type":"application/json"},
-                  body:JSON.stringify({at:Date.now()})
-                });
-                showMsg("✅ 전체 강제 로그아웃 완료");
-              }} style={{padding:"6px 14px",background:"#e87e7e18",border:"1px solid #e87e7e55",borderRadius:8,color:"#e87e7e",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                🔌 전체 로그아웃
-              </button>
-            </div>
+            <div style={{fontSize:11,color:c.muted,marginBottom:12}}>현재 {onlineUsers.length}명 접속 중 (10초 기준)</div>
             {onlineUsers.length===0
               ? <div style={{textAlign:"center",color:c.muted,fontSize:13,padding:"40px 0"}}>
                   <div style={{fontSize:32,marginBottom:8}}>🔌</div>
@@ -3078,20 +3085,6 @@ const WEEK_DAYS = ["월","화","수","목","금","토","일"];
 const CLASS_PERIODS = Array.from({length:16},(_,i)=>i+8);
 const PERIOD_TIMES = Object.fromEntries(Array.from({length:16},(_,i)=>[i+8, `${String(i+8).padStart(2,"0")}:00`]));
 
-const SLOT_COLORS = [
-  "#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070",
-  "#70d0d0","#f090b0","#90c0e0","#d0b070","#a0e0b0","#e0a0d0",
-  "#7090f0","#f0d090","#90e0c0","#e07090","#b0d060","#60b0e0",
-  "#e0b060","#a060c0","#60e0a0","#e06080","#80a0f0","#c0e080"
-];
-function getScheduleColor(title, currentData) {
-  const existing = Object.values(currentData||{}).find(e=>e.title===title);
-  if(existing) return existing.color;
-  const usedColors = new Set(Object.values(currentData||{}).map(e=>e.color));
-  const unused = SLOT_COLORS.find(col=>!usedColors.has(col));
-  return unused || SLOT_COLORS[Object.keys(currentData||{}).length % SLOT_COLORS.length];
-}
-
 function ScheduleShareTab({ grade, user, TC }) {
   const [scheduleMap, setScheduleMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -3103,8 +3096,7 @@ function ScheduleShareTab({ grade, user, TC }) {
     const day = d.getDay();
     const mon = new Date(d);
     mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
-    mon.setHours(0,0,0,0);
-    return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    return mon.toISOString().slice(0,10);
   };
   const [weekOffset, setWeekOffset] = useState(0);
   const weekStart = getWeekStart(weekOffset);
@@ -3112,8 +3104,7 @@ function ScheduleShareTab({ grade, user, TC }) {
   // 주의 월~일 날짜 계산
   const getWeekDates = () => {
     const dates = [];
-    const [y,m,day2] = weekStart.split('-').map(Number);
-    const mon = new Date(y, m-1, day2);
+    const mon = new Date(weekStart);
     for(let i=0;i<7;i++) {
       const d = new Date(mon);
       d.setDate(mon.getDate()+i);
@@ -3283,22 +3274,34 @@ function MyScheduleTab({ grade, user, TC }) {
   const [dragStartH, setDragStartH]     = useState(null);
   const [dragEndH, setDragEndH]         = useState(null);
 
+  const SLOT_COLORS = [
+    "#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070",
+    "#70d0d0","#f090b0","#90c0e0","#d0b070","#a0e0b0","#e0a0d0",
+    "#7090f0","#f0d090","#90e0c0","#e07090","#b0d060","#60b0e0",
+    "#e0b060","#a060c0","#60e0a0","#e06080","#80a0f0","#c0e080"
+  ];
 
+  // 제목 기반 색상 - 같은 제목이면 같은 색, 새 제목이면 안 쓰인 색 배정
+  const getTitleColor = (title, currentData) => {
+    const existing = Object.values(currentData||{}).find(e=>e.title===title);
+    if(existing) return existing.color;
+    const usedColors = new Set(Object.values(currentData||{}).map(e=>e.color));
+    const unused = SLOT_COLORS.find(c=>!usedColors.has(c));
+    return unused || SLOT_COLORS[Object.keys(currentData||{}).length % SLOT_COLORS.length];
+  };
 
   const getWeekStart = (offset=0) => {
     const d = new Date();
     const day = d.getDay();
     const mon = new Date(d);
     mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
-    mon.setHours(0,0,0,0);
-    return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    return mon.toISOString().slice(0,10);
   };
   const weekStart = getWeekStart(weekOffset);
 
   const getWeekDates = () => {
     const dates = [];
-    const [y,m,day2] = weekStart.split('-').map(Number);
-    const mon = new Date(y, m-1, day2);
+    const mon = new Date(weekStart);
     for(let i=0;i<7;i++) {
       const d = new Date(mon);
       d.setDate(mon.getDate()+i);
@@ -3335,7 +3338,7 @@ function MyScheduleTab({ grade, user, TC }) {
 
   async function saveSlot() {
     if(!inputTitle.trim()) return;
-    const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:getScheduleColor(inputTitle.trim(), scheduleData) };
+    const newEntry = { title:inputTitle.trim(), memo:inputMemo.trim(), color:getTitleColor(inputTitle.trim(), scheduleData) };
     const slots = selectedSlots.length > 0 ? selectedSlots : [selectedSlot];
     const newData = {...scheduleData};
     const updates = [];
@@ -4048,54 +4051,36 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
   const [loading, setLoading] = useState(true);
   const [lastSync, setLastSync] = useState(null);
 
-  // 팀플 추가 선택 상태
-  const [selectMode, setSelectMode] = useState(false);       // 선택 모드 on/off
-  const [selectedFree, setSelectedFree] = useState([]);       // [{day,hour}, ...]
-  const [dragFreeStart, setDragFreeStart] = useState(null);   // 드래그 시작점
-  const [isDraggingFree, setIsDraggingFree] = useState(false);
-  const [teamplanModal, setTeamplanModal] = useState(null);   // {day,hours:[]} 확인 모달
-  const [teamplanTitle, setTeamplanTitle] = useState("");
-  const [savingPlan, setSavingPlan] = useState(false);
-  const [planMsg, setPlanMsg] = useState(null);
-  const [teamPlans, setTeamPlans] = useState({});   // {day_hour: {title, createdAt}} 팀플 슬롯
-  const [deleteModal, setDeleteModal] = useState(null); // {day, hour, title} 삭제 확인
-
   const getWeekStart = (offset=0) => {
     const d = new Date();
     const day = d.getDay();
     const mon = new Date(d);
     mon.setDate(d.getDate() - (day===0?6:day-1) + offset*7);
-    mon.setHours(0,0,0,0);
-    return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    return mon.toISOString().slice(0,10);
   };
   const weekStart = getWeekStart(weekOffset);
   const getWeekDates = () => {
-    const dates = []; const [y,m,day2] = weekStart.split('-').map(Number); const mon = new Date(y,m-1,day2);
+    const dates = []; const mon = new Date(weekStart);
     for(let i=0;i<7;i++) { const d=new Date(mon); d.setDate(mon.getDate()+i); dates.push(d); }
     return dates;
   };
   const weekDates = getWeekDates();
   const formatDate = d => `${d.getMonth()+1}/${d.getDate()}`;
 
-  // 팀원들의 my_schedules + team_plans 로드
-  const fbPlanBase = `team_plans/${encodeURIComponent(subject)}/${team.key}/${weekStart}`;
+  // 팀원들의 my_schedules 로드
   const load = async (quiet=false) => {
     if(!quiet) setLoading(true);
-    const [memberResults, planData] = await Promise.all([
-      Promise.all(members.map(async (name) => {
-        try {
-          const res = await fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}.json`);
-          const data = await res.json() || {};
-          const slots = {};
-          Object.entries(data).forEach(([k,v])=>{ if(v?.title) slots[k]=true; });
-          return [name, slots];
-        } catch(e) { return [name, {}]; }
-      })),
-      fetch(`${FIREBASE_URL}/${fbPlanBase}.json`).then(r=>r.json()).catch(()=>null)
-    ]);
-    const results = Object.fromEntries(memberResults);
+    const results = {};
+    await Promise.all(members.map(async (name) => {
+      try {
+        const res = await fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}.json`);
+        const data = await res.json() || {};
+        const slots = {};
+        Object.entries(data).forEach(([k,v])=>{ if(v?.title) slots[k]=true; });
+        results[name] = slots;
+      } catch(e) { results[name] = {}; }
+    }));
     setAllSlots(results);
-    setTeamPlans(planData || {});
     setLastSync(new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
     if(!quiet) setLoading(false);
   };
@@ -4105,142 +4090,10 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
     return ()=>clearInterval(timer);
   },[weekOffset, members.length]);
 
-  // 선택 모드 토글 시 초기화
-  useEffect(()=>{ if(!selectMode) setSelectedFree([]); },[selectMode]);
-
-  // window mouseup으로 드래그 종료 처리 (모달 열려있을 땐 등록 안 함)
-  useEffect(()=>{
-    if(teamplanModal) return; // 모달 열려있으면 등록 skip
-    const handler = () => { if(isDraggingFree) handleFreeMouseUp(); };
-    window.addEventListener('mouseup', handler);
-    return () => window.removeEventListener('mouseup', handler);
-  }, [isDraggingFree, selectedFree, teamplanModal]);
-
   const getSlotUsers = (day, hour) => {
     const key = `${day}_${hour}`;
     return members.filter(m => allSlots[m]?.[key]);
   };
-
-  // 해당 슬롯이 모든 팀원에게 비어있는지
-  const isFreeSlot = (day, hour) => getSlotUsers(day, hour).length === 0;
-
-  const isSelectedFree = (day, hour) =>
-    selectedFree.some(s => s.day===day && s.hour===hour);
-
-  // 드래그 범위에 포함되는지
-  const inDragRange = (day, hour) => {
-    if(!isDraggingFree || !dragFreeStart) return false;
-    if(dragFreeStart.day !== day) return false;
-    return hour >= Math.min(dragFreeStart.hour, hour) && hour <= Math.max(dragFreeStart.hour, hour);
-  };
-
-  function handleFreeMouseDown(day, hour) {
-    if(!selectMode || !isFreeSlot(day, hour)) return;
-    setIsDraggingFree(true);
-    setDragFreeStart({day, hour});
-    setSelectedFree([{day, hour}]);
-  }
-
-  function handleFreeMouseEnter(day, hour) {
-    if(!isDraggingFree || !dragFreeStart || dragFreeStart.day !== day) return;
-    if(!isFreeSlot(day, hour)) return;
-    // 시작점과 현재 사이의 모든 free 슬롯 선택
-    const minH = Math.min(dragFreeStart.hour, hour);
-    const maxH = Math.max(dragFreeStart.hour, hour);
-    const range = [];
-    for(let h=minH; h<=maxH; h++) {
-      if(isFreeSlot(day, h)) range.push({day, hour:h});
-    }
-    setSelectedFree(range);
-  }
-
-  function handleFreeMouseUp() {
-    if(!isDraggingFree) return;
-    setIsDraggingFree(false);
-    if(selectedFree.length > 0) {
-      const day = selectedFree[0].day;
-      const hours = selectedFree.map(s=>s.hour).sort((a,b)=>a-b);
-      setTeamplanModal({day, hours});
-      setTeamplanTitle(`${subject} 팀플`);
-    }
-  }
-
-  // 팀플 일정 모든 팀원 my_schedules에 저장
-  async function saveTeamPlan() {
-    if(!teamplanTitle.trim() || !teamplanModal) return;
-    setSavingPlan(true);
-    try {
-      const { day, hours } = teamplanModal;
-      const title = teamplanTitle.trim();
-      // 각 팀원의 기존 스케줄을 fetch해서 겹치지 않는 색상 개별 배정
-      await Promise.all(members.map(async (name) => {
-        const res = await fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}.json`);
-        const existingData = await res.json() || {};
-        const color = getScheduleColor(title, existingData);
-        const entry = { title, memo: `${subject} 팀플`, color };
-        return Promise.all(hours.map(h => {
-          const key = `${day}_${h}`;
-          return fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}/${key}.json`, {
-            method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(entry)
-          });
-        }));
-      }));
-      // team_plans에 슬롯별 기록 (표식용)
-      await Promise.all(hours.map(h => {
-        const key = `${day}_${h}`;
-        return fetch(`${FIREBASE_URL}/${fbPlanBase}/${key}.json`, {
-          method:"PUT", headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({ title, day, hour:h, createdAt:Date.now(), by:user.name })
-        });
-      }));
-      const startT = PERIOD_TIMES[hours[0]];
-      const endH = hours[hours.length-1]+1;
-      const endT = endH <= 23 ? PERIOD_TIMES[endH] || `${endH}:00` : "24:00";
-      setPlanMsg(`✅ ${day}요일 ${startT}~${endT} 팀플 일정이 모든 팀원에게 추가됐어요!`);
-      setTimeout(()=>setPlanMsg(null), 3500);
-      setTeamplanModal(null); setTeamplanTitle(""); setSelectedFree([]); setSelectMode(false);
-      load(true);
-    } catch(e) {
-      setPlanMsg("오류가 발생했습니다.");
-      setTimeout(()=>setPlanMsg(null), 2500);
-    } finally { setSavingPlan(false); }
-  }
-
-  // 팀플 삭제: team_plans + 모든 팀원 my_schedules에서 제거
-  async function deleteTeamPlan(day, hour) {
-    setSavingPlan(true);
-    try {
-      const key = `${day}_${hour}`;
-      // 해당 슬롯의 title 확인 (연속 슬롯 묶어서 삭제하기 위해 같은 title 찾기)
-      const planEntry = teamPlans[key];
-      const titleToDelete = planEntry?.title;
-
-      // team_plans에서 같은 title인 슬롯 전체 찾아서 삭제
-      const sameSlots = Object.entries(teamPlans)
-        .filter(([k,v]) => v.title === titleToDelete && v.day === day)
-        .map(([k]) => k);
-
-      await Promise.all([
-        // team_plans 삭제
-        ...sameSlots.map(k =>
-          fetch(`${FIREBASE_URL}/${fbPlanBase}/${k}.json`, {method:"DELETE"})
-        ),
-        // 모든 팀원 my_schedules에서 삭제
-        ...members.flatMap(name =>
-          sameSlots.map(k =>
-            fetch(`${FIREBASE_URL}/my_schedules/${encodeURIComponent(name)}/week_${weekStart}/${k}.json`, {method:"DELETE"})
-          )
-        )
-      ]);
-      setPlanMsg(`🗑️ 팀플 일정이 전원의 스케줄에서 삭제됐어요`);
-      setTimeout(()=>setPlanMsg(null), 3000);
-      setDeleteModal(null);
-      load(true);
-    } catch(e) {
-      setPlanMsg("삭제 중 오류가 발생했습니다.");
-      setTimeout(()=>setPlanMsg(null), 2500);
-    } finally { setSavingPlan(false); }
-  }
 
   const CELL_W = 42; const CELL_H = 28; const LABEL_W = 44;
   const memberColors = ["#a0d0a0","#60c0f0","#f0a060","#c0a0f0","#f0c060","#f07070"];
@@ -4256,24 +4109,11 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
         </div>
         <button onClick={()=>setWeekOffset(w=>w+1)} style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"5px 12px",color:c.muted,cursor:"pointer",fontSize:13}}>›</button>
       </div>
-      {/* 동기화 상태 + 팀플 추가 버튼 */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 12px",background:c.surface2}}>
+      {/* 동기화 상태 */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 16px",background:c.surface2}}>
         <span style={{fontSize:11,color:c.muted}}>🔄 {lastSync ? `${lastSync} 동기화됨` : "동기화 중..."}</span>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>load(false)} style={{fontSize:11,color:TC,background:"none",border:`1px solid ${TC}33`,borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>새로고침</button>
-          <button onClick={()=>setSelectMode(v=>!v)}
-            style={{fontSize:11,fontWeight:700,color:selectMode?"#0a0d14":TC,background:selectMode?TC:"none",border:`1px solid ${TC}`,borderRadius:6,padding:"3px 10px",cursor:"pointer",transition:"all 0.15s"}}>
-            {selectMode?"✕ 취소":"＋ 팀플 추가"}
-          </button>
-        </div>
+        <button onClick={()=>load(false)} style={{fontSize:11,color:TC,background:"none",border:`1px solid ${TC}33`,borderRadius:6,padding:"3px 10px",cursor:"pointer"}}>새로고침</button>
       </div>
-      {/* 선택 모드 안내 */}
-      {selectMode && (
-        <div style={{padding:"8px 14px",background:`${TC}12`,borderBottom:`1px solid ${TC}33`,fontSize:12,color:TC,display:"flex",alignItems:"center",gap:6}}>
-          <span>📌</span>
-          <span>모든 팀원이 <strong>비어있는 슬롯</strong>을 드래그해서 선택하세요. 선택 후 팀플 일정이 전원에게 자동 추가돼요.</span>
-        </div>
-      )}
       {/* 범례 */}
       <div style={{display:"flex",gap:8,padding:"8px 16px",flexWrap:"wrap"}}>
         {members.map((m,i)=>(
@@ -4282,17 +4122,9 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
             <span style={{color:c.muted}}>{m}</span>
           </div>
         ))}
-        {selectMode && (
-          <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,marginLeft:"auto"}}>
-            <div style={{width:10,height:10,borderRadius:2,background:`${TC}88`,border:`1px dashed ${TC}`}}/>
-            <span style={{color:TC}}>선택 가능</span>
-            <div style={{width:10,height:10,borderRadius:2,background:TC,marginLeft:6}}/>
-            <span style={{color:TC}}>선택됨</span>
-          </div>
-        )}
       </div>
       {loading ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
-        : <div style={{overflowX:"auto",padding:"0 8px",userSelect:"none",WebkitUserSelect:"none"}}>
+        : <div style={{overflowX:"auto",padding:"0 8px"}}>
             <div style={{display:"inline-block",minWidth:"100%"}}>
               <div style={{display:"flex",marginBottom:2}}>
                 <div style={{width:LABEL_W,flexShrink:0}}/>
@@ -4309,81 +4141,19 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
                   {WEEK_DAYS.map((d,di)=>{
                     const slotUsers = getSlotUsers(d,h);
                     const count = slotUsers.length;
-                    const free = count === 0;
-                    const selected = isSelectedFree(d, h);
-
-                    if(free && selectMode) {
-                      // 선택 모드: 빈 슬롯은 인터랙티브하게
-                      return (
-                        <div key={d}
-                          onMouseDown={()=>handleFreeMouseDown(d,h)}
-                          onMouseEnter={()=>handleFreeMouseEnter(d,h)}
-                          onTouchStart={(e)=>{e.preventDefault();handleFreeMouseDown(d,h);}}
-                          onTouchMove={(e)=>{
-                            e.preventDefault();
-                            const t=e.touches[0];
-                            const el=document.elementFromPoint(t.clientX,t.clientY);
-                            if(el?.dataset?.day && el?.dataset?.hour) handleFreeMouseEnter(el.dataset.day, parseInt(el.dataset.hour));
-                          }}
-                          onTouchEnd={handleFreeMouseUp}
-                          data-day={d} data-hour={h}
-                          title="클릭 또는 드래그해서 팀플 시간 선택"
-                          style={{
-                            width:CELL_W,height:CELL_H,flexShrink:0,
-                            background:selected?TC:`${TC}15`,
-                            border:`1px ${selected?"solid":"dashed"} ${TC}`,
-                            borderRadius:3,margin:"0 1px",
-                            cursor:"pointer",
-                            display:"flex",alignItems:"center",justifyContent:"center",
-                            transition:"background 0.1s"
-                          }}>
-                          {!selected && <span style={{fontSize:9,color:TC,opacity:0.7}}>+</span>}
-                        </div>
-                      );
-                    }
-
-                    const planKey = `${d}_${h}`;
-                    const isTeamPlan = !!teamPlans[planKey];
-
-                    if(free && isTeamPlan) {
-                      // 팀플 슬롯: 빈 칸이지만 팀플 표식 + 삭제 버튼
-                      return (
-                        <div key={d}
-                          title={`팀플: ${teamPlans[planKey]?.title}`}
-                          style={{width:CELL_W,height:CELL_H,flexShrink:0,background:`${TC}25`,border:`1px solid ${TC}88`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center",cursor:"default",position:"relative"}}>
-                          <span style={{fontSize:8,color:TC,fontWeight:800}}>팀플</span>
-                          <div onClick={()=>setDeleteModal({day:d, hour:h, title:teamPlans[planKey]?.title})}
-                            title="팀플 삭제"
-                            style={{position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:c.error,border:`1px solid ${c.bg}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:2,fontSize:9,color:"#fff",fontWeight:900,lineHeight:1}}>
-                            ×
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    if(free) return (
+                    if(count===0) return (
                       <div key={d} style={{width:CELL_W,height:CELL_H,flexShrink:0,background:c.surface,border:`1px solid ${c.border}`,borderRadius:3,margin:"0 1px"}}/>
                     );
-
+                    // 1명: 해당 멤버 색, 2명 이상: 색 혼합 표시
                     const firstColor = memberColors[members.indexOf(slotUsers[0])%memberColors.length];
-                    // 2명 이상 겹치는 슬롯: 동일 색상
-                    const overlapColor = count >= 2 ? "#ff4757" : firstColor;
-                    const bg = count===1 ? `${firstColor}40` : `${overlapColor}30`;
-                    const borderColor = isTeamPlan ? TC : (count===1 ? firstColor : overlapColor);
-                    const textColor = count===1 ? firstColor : overlapColor;
+                    const bg = count===1 ? `${firstColor}40` : `${TC}55`;
+                    const borderColor = count===1 ? firstColor : TC;
                     return (
-                      <div key={d}
-                        onClick={isTeamPlan ? ()=>setDeleteModal({day:d, hour:h, title:teamPlans[planKey]?.title}) : undefined}
-                        title={isTeamPlan ? `팀플: ${teamPlans[planKey]?.title} (클릭하면 삭제)` : slotUsers.join(", ")}
-                        style={{width:CELL_W,height:CELL_H,flexShrink:0,background:bg,border:`2px solid ${borderColor}`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",cursor:isTeamPlan?"pointer":"default"}}>
-                        {isTeamPlan && <div onClick={(e)=>{e.stopPropagation();setDeleteModal({day:d, hour:h, title:teamPlans[planKey]?.title});}}
-                            title="팀플 삭제"
-                            style={{position:"absolute",top:-4,right:-4,width:14,height:14,borderRadius:"50%",background:c.error,border:`1px solid ${c.bg}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:2,fontSize:9,color:"#fff",fontWeight:900,lineHeight:1}}>
-                            ×
-                          </div>}
+                      <div key={d} title={slotUsers.join(", ")}
+                        style={{width:CELL_W,height:CELL_H,flexShrink:0,background:bg,border:`1px solid ${borderColor}`,borderRadius:3,margin:"0 1px",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
                         {count===1
-                          ? <span style={{fontSize:8,color:textColor,fontWeight:700,textAlign:"center",lineHeight:1.1,padding:"0 1px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"85%"}}>{slotUsers[0]}</span>
-                          : <span style={{fontSize:9,color:textColor,fontWeight:800}}>{count}명</span>
+                          ? <span style={{fontSize:8,color:firstColor,fontWeight:700,textAlign:"center",lineHeight:1.1,padding:"0 1px",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",maxWidth:"95%"}}>{slotUsers[0]}</span>
+                          : <span style={{fontSize:9,color:"#eef2ff",fontWeight:700}}>{count}명</span>
                         }
                       </div>
                     );
@@ -4393,107 +4163,7 @@ function TeamScheduleTab({ team, subject, user, TC, members }) {
             </div>
           </div>
       }
-
-      {/* 선택된 슬롯 하단 요약 */}
-      {selectMode && selectedFree.length > 0 && (
-        <div style={{position:"sticky",bottom:0,background:c.surface,borderTop:`1px solid ${TC}44`,padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,zIndex:10}}>
-          <div style={{fontSize:13,color:TC,fontWeight:700}}>
-            {selectedFree[0].day}요일 {PERIOD_TIMES[Math.min(...selectedFree.map(s=>s.hour))]} ~ {(()=>{const endH=Math.max(...selectedFree.map(s=>s.hour))+1; return endH<=23?(PERIOD_TIMES[endH]||`${endH}:00`):"24:00";})()}
-            <span style={{fontSize:11,color:c.muted,fontWeight:400,marginLeft:6}}>({selectedFree.length}시간)</span>
-          </div>
-          <button onClick={()=>{ setTeamplanModal({day:selectedFree[0].day, hours:selectedFree.map(s=>s.hour).sort((a,b)=>a-b)}); setTeamplanTitle(`${subject} 팀플`); }}
-            style={{padding:"8px 18px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:10,color:"#0a0d14",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-            팀플 추가 →
-          </button>
-        </div>
-      )}
-
-      <div style={{padding:"8px 16px 4px",display:"flex",gap:16,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:c.muted}}>
-          <div style={{width:12,height:12,borderRadius:2,background:`${c.surface}`,border:`1px solid ${c.border}`}}/>
-          <span>비어있음 (전원 가능)</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:c.muted}}>
-          <div style={{width:12,height:12,borderRadius:2,background:"#a0d0a040",border:"1px solid #a0d0a0"}}/>
-          <span>1명 있음</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:c.muted}}>
-          <div style={{width:12,height:12,borderRadius:2,background:"#ff9f4330",border:"1px solid #ff9f43"}}/>
-          <span>2명 이상 겹침</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:c.muted}}>
-          <div style={{width:12,height:12,borderRadius:2,background:`${TC}25`,border:`2px solid ${TC}88`}}/>
-          <span style={{color:TC}}>팀플 일정 (클릭 삭제)</span>
-        </div>
-      </div>
-      <div style={{padding:"4px 16px 8px",fontSize:11,color:c.muted}}>💡 빈 슬롯 = 모두 여유있는 시간 · 셀 터치 시 이름 표시</div>
-
-      {/* 팀플 추가 모달 */}
-      {teamplanModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:500}} onMouseDown={(e)=>{if(e.target===e.currentTarget){setTeamplanModal(null);setTeamplanTitle("");}}}>
-          <div style={{background:c.surface,border:`1px solid ${TC}55`,borderRadius:"20px 20px 0 0",padding:"24px 20px 40px",width:"100%",maxWidth:480,animation:"slideUp 0.25s ease"}} onClick={e=>e.stopPropagation()}>
-            <div style={{width:40,height:4,borderRadius:2,background:c.border,margin:"0 auto 20px"}}/>
-            <div style={{fontSize:17,fontWeight:700,color:TC,marginBottom:4}}>📅 팀플 일정 추가</div>
-            <div style={{fontSize:13,color:c.muted,marginBottom:4}}>
-              <strong style={{color:c.text}}>{teamplanModal.day}요일</strong>
-              {" "}{PERIOD_TIMES[teamplanModal.hours[0]]} ~ {(()=>{const endH=teamplanModal.hours[teamplanModal.hours.length-1]+1; return endH<=23?(PERIOD_TIMES[endH]||`${endH}:00`):"24:00";})()}
-              {" "}({teamplanModal.hours.length}시간)
-            </div>
-            <div style={{fontSize:12,color:c.muted,marginBottom:16}}>
-              👥 {members.join(", ")} 전원의 스케줄에 자동 추가돼요
-            </div>
-            <label style={{display:"block",fontSize:11,fontWeight:600,color:c.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>일정 제목</label>
-            <input
-              value={teamplanTitle}
-              onChange={e=>setTeamplanTitle(e.target.value)}
-              placeholder={`예: ${subject} 팀플`}
-              autoFocus
-              style={{width:"100%",padding:"11px 14px",background:c.surface2,border:`1px solid ${TC}55`,borderRadius:10,color:c.text,fontSize:15,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:18}}
-            />
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{setTeamplanModal(null);setTeamplanTitle("");}}
-                style={{flex:1,padding:"13px",background:"none",border:`1px solid ${c.border}`,borderRadius:12,color:c.muted,fontSize:14,fontWeight:600,cursor:"pointer"}}>
-                취소
-              </button>
-              <button onClick={saveTeamPlan} disabled={savingPlan||!teamplanTitle.trim()}
-                style={{flex:2,padding:"13px",background:(!teamplanTitle.trim()||savingPlan)?c.muted:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:12,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
-                {savingPlan?"저장 중...":"✅ 전원에게 추가"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 성공/에러 토스트 */}
-      {/* 팀플 삭제 확인 모달 */}
-      {deleteModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:600,padding:"0 20px"}}
-          onMouseDown={(e)=>{if(e.target===e.currentTarget) setDeleteModal(null);}}>
-          <div style={{background:c.surface,border:`1px solid ${c.error}44`,borderRadius:18,padding:"24px 22px 20px",maxWidth:320,width:"100%"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:17,fontWeight:700,color:c.error,marginBottom:8,textAlign:"center"}}>🗑️ 팀플 삭제</div>
-            <div style={{fontSize:13,color:c.muted,lineHeight:1.7,marginBottom:6,textAlign:"center"}}>
-              <strong style={{color:c.text}}>{deleteModal.title}</strong>
-            </div>
-            <div style={{fontSize:13,color:c.muted,lineHeight:1.7,marginBottom:18,textAlign:"center"}}>
-              {deleteModal.day}요일 이 일정을 <strong style={{color:c.error}}>전원의 스케줄</strong>에서 삭제할까요?
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setDeleteModal(null)}
-                style={{flex:1,padding:"11px",background:"none",border:`1px solid ${c.border}`,borderRadius:10,color:c.muted,cursor:"pointer",fontSize:14,fontWeight:600}}>취소</button>
-              <button onClick={()=>deleteTeamPlan(deleteModal.day, deleteModal.hour)} disabled={savingPlan}
-                style={{flex:2,padding:"11px",background:savingPlan?c.muted:`${c.error}cc`,border:"none",borderRadius:10,color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>
-                {savingPlan?"삭제 중...":"🗑️ 전원에서 삭제"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {planMsg && (
-        <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:c.surface2,border:`1px solid ${TC}55`,borderRadius:10,padding:"10px 20px",fontSize:13,color:TC,zIndex:600,whiteSpace:"nowrap",boxShadow:"0 4px 20px #00000055",maxWidth:"90vw",textOverflow:"ellipsis",overflow:"hidden"}}>
-          {planMsg}
-        </div>
-      )}
+      <div style={{padding:"8px 16px",fontSize:11,color:c.muted}}>💡 숫자는 해당 시간에 가능한 팀원 수예요. 셀에 마우스를 올리면 이름이 표시돼요.</div>
     </div>
   );
 }
@@ -5044,11 +4714,7 @@ function App() {
   const [user, setUser] = useState(()=>{
     try {
       const saved = localStorage.getItem("msde_user");
-      if (!saved) return null;
-      const u = JSON.parse(saved);
-      // loginAt 없으면 0으로 → force_logout 시 항상 로그아웃됨
-      if (!u.loginAt) u.loginAt = 0;
-      return u;
+      return saved ? JSON.parse(saved) : null;
     } catch(e) { return null; }
   });
   const [page, setPage_] = useState("home");
@@ -5066,46 +4732,6 @@ function App() {
   const [emailInput, setEmailInput] = useState("");
   const [emailErr, setEmailErr] = useState("");
   const presenceRef = useRef(null);
-  const userRef = useRef(null); // 항상 최신 user를 참조하기 위한 ref
-  useEffect(() => { userRef.current = user; }, [user]);
-
-  // 강제 로그아웃 체크 (앱 마운트 시 1회 등록, userRef로 최신값 참조)
-  useEffect(() => {
-    const doLogout = () => {
-      if (presenceRef.current) fetch(presenceRef.current, { method:"DELETE" });
-      setUser(null);
-      setPage_("home");
-      try { localStorage.removeItem("msde_user"); } catch(e) {}
-    };
-
-    const check = async () => {
-      const u = userRef.current;
-      if (!u || u.isAdmin) return;
-      try {
-        const res = await fetch(`${FIREBASE_URL}/force_logout.json`);
-        const data = await res.json();
-        if (data && data.at && data.at > (u.loginAt || 0)) {
-          doLogout();
-        }
-      } catch(e) {}
-    };
-
-    // 즉시 실행 + 15초 폴링
-    check();
-    const id = setInterval(check, 15000);
-
-    // 백그라운드 → 포그라운드 전환 시 즉시 체크
-    const onFocus = () => check();
-    const onVisible = () => { if (!document.hidden) check(); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, []); // 마운트 시 1회만 등록
 
   // presence 등록
   useEffect(() => {
@@ -5172,10 +4798,9 @@ function App() {
     } catch(e){}
   }
   function handleLogin(u) {
-    const loginAt = Date.now();
-    setUser({...u, loginAt});
+    setUser(u);
     setPage("home");
-    try { localStorage.setItem("msde_user", JSON.stringify({...u, loginAt})); } catch(e) {}
+    try { localStorage.setItem("msde_user", JSON.stringify(u)); } catch(e) {}
     fetchUnread(u);
     // 이메일 없으면 이메일 팝업 먼저, 있으면 알림 팝업
     if (!u.isAdmin && !u.email) {
@@ -5202,10 +4827,10 @@ function App() {
   if (page === "piano")   return <InstrumentPage type="piano"  onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "guitar")  return <InstrumentPage type="guitar" onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "rental")  return <RentalPage onBack={()=>setPage("instruments")} user={user}/>;
-  if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{const merged={...u,loginAt:userRef.current?.loginAt||0};setUser(merged);try{localStorage.setItem("msde_user",JSON.stringify(merged));}catch(e){}}}/>;
+  if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "food")       return <FoodPage onBack={()=>setPage("home")}/>;
   if (page === "messages")   return <MessagesPage onBack={()=>setPage("home")} user={user}/>;
-  if (page === "teamproject") return <TeamProjectPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{const merged={...u,loginAt:userRef.current?.loginAt||0};setUser(merged);try{localStorage.setItem("msde_user",JSON.stringify(merged));}catch(e){}}}/>;
+  if (page === "teamproject") return <TeamProjectPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "suggest")    return <SuggestPage onBack={()=>setPage("home")} user={user}/>;
   if (page === "adminpanel") return <AdminPanelPage onBack={()=>setPage("home")}/>;
   return (
