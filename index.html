@@ -746,8 +746,7 @@ function InstrumentPage({ type, onBack, user }) {
                 </div>
               );
             })()}
-          </div>
-        )}
+        </div>
 
       </div>
 
@@ -1458,15 +1457,7 @@ function BettingPage({ onBack, user, onUserUpdate }) {
                   const won = myBet && myBet.choice===bet.result;
                   return (
                     <div key={bet.id} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"14px",marginBottom:10,opacity:0.8}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                        <div style={{fontSize:14,fontWeight:700,color:c.text,flex:1,paddingRight:8}}>{bet.title}</div>
-                        {user.isAdmin && (
-                          <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
-                            style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-                            🗑️
-                          </button>
-                        )}
-                      </div>
+                      <div style={{fontSize:14,fontWeight:700,color:c.text,marginBottom:6}}>{bet.title}</div>
                       <div style={{fontSize:12,color:c.muted,marginBottom:myBet?8:0}}>결과: <strong style={{color:c.text}}>{bet.result==="yes"?"YES":"NO"}</strong></div>
                       {myBet&&(
                         <div style={{fontSize:12,padding:"6px 10px",borderRadius:8,background:won?`${c.success}15`:`${c.error}15`,border:`1px solid ${won?c.success+"44":c.error+"44"}`,color:won?c.success:c.error}}>
@@ -1731,12 +1722,10 @@ function BettingPage({ onBack, user, onUserUpdate }) {
                     <div key={bet.id} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,padding:"14px",marginBottom:10}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
                         <div style={{fontSize:14,fontWeight:700,color:c.text,flex:1,paddingRight:8}}>{bet.title}</div>
-                        {user.isAdmin && (
-                          <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
-                            style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
-                            🗑️
-                          </button>
-                        )}
+                        <button onClick={()=>{ if(window.confirm("이 배팅을 삭제할까요?")) deleteBet(bet); }}
+                          style={{padding:"3px 10px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:6,color:c.error,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+                          🗑️
+                        </button>
                       </div>
                       <div style={{fontSize:12,color:c.muted,marginBottom:10}}>참여 {partCount}명 · {bet.status==="open"?"진행중":"마감됨"}</div>
                       {bet.status==="open"&&(
