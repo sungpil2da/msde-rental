@@ -1367,6 +1367,323 @@ function ContestPage({ onBack, user }) {
   );
 }
 
+// ── LOBBY LOCKER PAGE ────────────────────────────────────
+const LOCKER_COLOR = "#c9a06a";
+const LOCKER_SLOTS = [
+  ["L", [1,2,3,4,5]],    // 좌측 선반 1~5
+  ["R", [6,7,8,9,10]],   // 우측 선반 6~10
+];
+const LOCKER_LIMIT_MS = 24 * 3600 * 1000;
+
+function LockerPage({ onBack, user }) {
+  const LC = LOCKER_COLOR;
+  const [slots, setSlots]     = useState({});
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [target, setTarget]   = useState(null);   // 보관 확인할 칸
+  const [release, setRelease] = useState(null);   // 회수 확인할 칸
+  const [msg, setMsg]         = useState(null);
+  const [showRules, setShowRules] = useState(false);
+  const [note, setNote]       = useState("");
+
+  const showMsg = (text, ok=true) => { setMsg({text,ok}); setTimeout(()=>setMsg(null),2500); };
+
+  const load = useCallback(async (quiet=false) => {
+    try {
+      if(!quiet) setLoading(true);
+      const res = await fetch(`${FIREBASE_URL}/lockers.json`);
+      setSlots(await res.json() || {});
+    } catch(e){ console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(()=>{ load(); },[]);
+  useEffect(()=>{ const id=setInterval(()=>load(true),4000); return()=>clearInterval(id); },[]);
+
+  const mySlot = Object.entries(slots).find(([,v]) => v && v.userName === user.name);
+  const usedCount = Object.values(slots).filter(Boolean).length;
+
+  // 남은 시간 계산
+  const remainOf = (v) => {
+    if(!v || !v.at) return null;
+    const left = v.at + LOCKER_LIMIT_MS - Date.now();
+    return left;   // 음수면 24시간 초과
+  };
+  const fmtRemain = (ms) => {
+    if(ms === null) return "";
+    if(ms < 0) {
+      const over = -ms;
+      const h = Math.floor(over/3600000), m = Math.floor((over%3600000)/60000);
+      return h>0 ? `${h}시간 ${m}분 초과` : `${m}분 초과`;
+    }
+    const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
+    return h>0 ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
+  };
+
+  async function doReserve() {
+    if(!target) return;
+    // 1인 1칸 제한
+    if(mySlot) { setTarget(null); return showMsg("이미 사용 중인 칸이 있어요. 1인 1칸만 가능해요.", false); }
+    setSyncing(true);
+    try {
+      // 최신 상태 재확인 (동시 예약 방지)
+      const latest = await fetch(`${FIREBASE_URL}/lockers.json`).then(r=>r.json()) || {};
+      if(latest[target]) { showMsg("방금 다른 분이 사용했어요.", false); await load(true); return; }
+      if(Object.values(latest).some(v=>v && v.userName===user.name)) {
+        showMsg("이미 사용 중인 칸이 있어요.", false); await load(true); return;
+      }
+      const data = { userName:user.name, studentId:user.studentId||"", note:note.trim(), at:Date.now() };
+      await fetch(`${FIREBASE_URL}/lockers/${target}.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
+      });
+      await fetch(`${FIREBASE_URL}/locker_logs.json`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ type:"in", slot:target, userName:user.name, at:Date.now() })
+      });
+      await load(true);
+      showMsg(`✅ ${slotLabel(target)} 보관 시작! 24시간 내 회수해주세요`);
+    } catch(e){ showMsg("오류가 발생했습니다.", false); }
+    finally { setSyncing(false); setTarget(null); setNote(""); }
+  }
+
+  async function doRelease() {
+    if(!release) return;
+    setSyncing(true);
+    try {
+      await fetch(`${FIREBASE_URL}/lockers/${release.id}.json`, { method:"DELETE" });
+      await fetch(`${FIREBASE_URL}/locker_logs.json`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ type:"out", slot:release.id, userName:release.data?.userName||"",
+                              by:user.name, at:Date.now() })
+      });
+      await load(true);
+      showMsg(`✅ ${slotLabel(release.id)} 회수 완료`);
+    } catch(e){ showMsg("오류가 발생했습니다.", false); }
+    finally { setSyncing(false); setRelease(null); }
+  }
+
+  if (loading) return (
+    <div style={{minHeight:"100vh",background:c.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:36}}>🎒</div>
+      <div style={{color:c.muted,fontSize:14}}>불러오는 중...</div>
+    </div>
+  );
+
+  // 칸 하나 렌더
+  const Cell = ({ id }) => {
+    const v = slots[id];
+    const mine = v && v.userName === user.name;
+    const left = remainOf(v);
+    const over = left !== null && left < 0;
+    const soon = left !== null && left >= 0 && left < 3*3600000;
+
+    const bg     = !v ? "rgba(0,0,0,0.18)" : over ? `${c.error}28` : mine ? `${LC}35` : "rgba(0,0,0,0.32)";
+    const border = !v ? `${LC}44` : over ? c.error : mine ? LC : `${LC}66`;
+
+    return (
+      <button
+        onClick={()=>{
+          if(!v) { setTarget(id); setNote(""); }
+          else if(mine || user.isAdmin) setRelease({ id, data:v });
+          else showMsg(`${v.userName}님이 사용 중이에요`, false);
+        }}
+        style={{
+          width:"100%",height:64,background:bg,border:`1.5px solid ${border}`,
+          borderRadius:6,cursor:"pointer",padding:"4px 6px",
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,
+          position:"relative",overflow:"hidden",transition:"all 0.15s",
+        }}>
+        <span style={{position:"absolute",top:3,left:5,fontSize:9,fontWeight:700,color:`${LC}cc`}}>{id.replace(/\D/g,"")}</span>
+        {!v ? (
+          <span style={{fontSize:11,color:`${LC}99`}}>비어있음</span>
+        ) : (
+          <>
+            <span style={{fontSize:12,fontWeight:700,color:over?c.error:mine?LC:c.text,lineHeight:1.2,
+              maxWidth:"100%",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+              {v.userName}{mine?" (나)":""}
+            </span>
+            <span style={{fontSize:9,color:over?c.error:soon?"#f0c060":c.muted,lineHeight:1.1,textAlign:"center"}}>
+              {fmtRemain(left)}
+            </span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
+      {/* HEADER */}
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"16px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={onBack} style={{background:`${LC}15`,border:`1px solid ${LC}33`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:LC,fontSize:13,fontWeight:600}}>← 뒤로</button>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+            <span style={{fontSize:20}}>🎒</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:LC}}>로비 짐 보관</h1>
+          </div>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>무궁관 8층 로비 · 최대 24시간</p>
+        </div>
+        <div style={{background:`${LC}15`,border:`1px solid ${LC}33`,borderRadius:20,padding:"4px 12px",fontSize:13,fontWeight:700,color:LC,flexShrink:0}}>
+          {usedCount}/10
+        </div>
+      </div>
+
+      <div style={{padding:"16px 20px",maxWidth:480,margin:"0 auto"}}>
+
+        {/* 이용수칙 */}
+        <button onClick={()=>setShowRules(v=>!v)}
+          style={{width:"100%",background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,
+            padding:"11px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:8,
+            color:c.text,marginBottom:showRules?0:14,textAlign:"left"}}>
+          <span style={{fontSize:15}}>📢</span>
+          <span style={{flex:1,fontSize:13,fontWeight:700}}>이용수칙 안내</span>
+          <span style={{fontSize:12,color:c.muted}}>{showRules?"▲":"▼"}</span>
+        </button>
+        {showRules && (
+          <div style={{background:c.surface,border:`1px solid ${c.border}`,borderTop:"none",
+            borderRadius:"0 0 12px 12px",padding:"4px 16px 14px",marginBottom:14,fontSize:12.5,lineHeight:1.75,color:c.muted}}>
+            <div style={{color:LC,fontWeight:700,marginBottom:6,marginTop:8}}>✓ 이용 안내</div>
+            <div>· 무거운 짐(가방, 노트북)을 놓고 다닐 수 있는 간이 선반이에요</div>
+            <div>· 최대 <strong style={{color:c.text}}>24시간</strong>까지 보관 가능해요</div>
+            <div>· 로비 테이블에 2시간 이상 놔둔 짐은 자리가 필요할 경우 선반으로 옮겨질 수 있어요</div>
+            <div style={{color:c.error,fontWeight:700,marginTop:10,marginBottom:6}}>⚠️ 주의사항</div>
+            <div>· <strong style={{color:c.error}}>개인 사물함처럼 이용하지 말아주세요</strong></div>
+            <div>· 장기 보관 금지 · 1인 1칸만 사용 가능해요</div>
+            <div style={{marginTop:10,fontSize:11,color:c.muted,opacity:0.8}}>
+              MSDE학과 제25대 CLOUD 학생회
+            </div>
+          </div>
+        )}
+
+        {/* 내 보관 현황 */}
+        {mySlot && (()=>{
+          const [id, v] = mySlot;
+          const left = remainOf(v);
+          const over = left < 0;
+          return (
+            <div style={{background:over?`${c.error}12`:`${LC}12`,border:`1px solid ${over?c.error+"55":LC+"44"}`,
+              borderRadius:12,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:22}}>{over?"⚠️":"🎒"}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:over?c.error:LC}}>
+                  {slotLabel(id)} 사용 중
+                </div>
+                <div style={{fontSize:11,color:c.muted}}>
+                  {fmtRemain(left)}
+                  {v.note ? ` · ${v.note}` : ""}
+                </div>
+              </div>
+              <button onClick={()=>setRelease({ id, data:v })}
+                style={{padding:"7px 14px",background:`${LC}20`,border:`1px solid ${LC}55`,borderRadius:8,
+                  color:LC,fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>회수</button>
+            </div>
+          );
+        })()}
+
+        {/* 선반 (사진과 같은 2열 구조) */}
+        <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>
+          선반 현황 · 칸을 눌러 보관
+        </div>
+        <div style={{display:"flex",gap:12}}>
+          {LOCKER_SLOTS.map(([side, nums])=>(
+            <div key={side} style={{flex:1,background:"linear-gradient(160deg,#5a4634,#43331f)",
+              border:`2px solid ${LC}55`,borderRadius:10,padding:"8px 7px",
+              display:"flex",flexDirection:"column",gap:7,boxShadow:"0 4px 16px rgba(0,0,0,0.45)"}}>
+              <div style={{fontSize:10,fontWeight:700,color:`${LC}dd`,textAlign:"center",letterSpacing:"1px"}}>
+                {side==="L"?"좌측 선반":"우측 선반"}
+              </div>
+              {nums.map(n=><Cell key={n} id={`${side}${n}`}/>)}
+            </div>
+          ))}
+        </div>
+
+        <div style={{marginTop:12,fontSize:11,color:c.muted,lineHeight:1.7}}>
+          💡 회수하면 바로 다음 사람이 쓸 수 있어요. 24시간이 지나면 <span style={{color:c.error}}>초과</span>로 표시돼요.
+          {user.isAdmin && <div style={{color:LC,marginTop:4}}>🛡️ 관리자는 모든 칸을 회수 처리할 수 있어요.</div>}
+        </div>
+      </div>
+
+      {/* 토스트 */}
+      {msg && (
+        <div style={{position:"fixed",bottom:30,left:"50%",transform:"translateX(-50%)",background:c.surface2,
+          border:`1px solid ${msg.ok?c.success+"55":c.error+"55"}`,borderRadius:10,padding:"10px 20px",
+          fontSize:13,color:msg.ok?c.success:c.error,zIndex:300,maxWidth:"90%",textAlign:"center",
+          boxShadow:"0 4px 20px #00000044"}}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* 보관 확인 모달 */}
+      {target && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-end",
+          justifyContent:"center",zIndex:200}} onClick={e=>{if(e.target===e.currentTarget){setTarget(null);setNote("");}}}>
+          <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:"20px 20px 0 0",
+            padding:"24px 20px 34px",width:"100%",maxWidth:480,animation:"slideUp 0.25s ease"}}>
+            <div style={{fontSize:30,textAlign:"center",marginBottom:8}}>🎒</div>
+            <div style={{fontSize:17,fontWeight:700,textAlign:"center",marginBottom:6}}>
+              {slotLabel(target)}에 보관할까요?
+            </div>
+            <div style={{fontSize:12,color:c.muted,textAlign:"center",marginBottom:16,lineHeight:1.6}}>
+              {user.name} · 최대 <strong style={{color:LC}}>24시간</strong>까지 보관 가능해요<br/>
+              1인 1칸만 사용할 수 있어요
+            </div>
+            <input value={note} onChange={e=>setNote(e.target.value)} maxLength={20}
+              placeholder="물품 메모 (선택, 예: 검정 백팩)"
+              style={{width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,
+                borderRadius:10,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box",
+                marginBottom:14,fontFamily:"inherit"}}/>
+            <button onClick={doReserve} disabled={syncing}
+              style={{width:"100%",padding:13,background:syncing?c.muted:`linear-gradient(135deg,${LC},#a87f4d)`,
+                border:"none",borderRadius:12,color:"#1a1206",fontSize:15,fontWeight:800,cursor:"pointer"}}>
+              {syncing?"처리 중...":"보관 시작"}
+            </button>
+            <button onClick={()=>{setTarget(null);setNote("");}}
+              style={{width:"100%",padding:10,background:"none",border:`1px solid ${c.border}`,borderRadius:10,
+                color:c.muted,cursor:"pointer",fontSize:14,marginTop:8}}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {/* 회수 확인 모달 */}
+      {release && (
+        <div style={{position:"fixed",inset:0,background:"#00000088",display:"flex",alignItems:"center",
+          justifyContent:"center",zIndex:200,padding:"0 20px"}} onClick={e=>{if(e.target===e.currentTarget)setRelease(null);}}>
+          <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:18,
+            padding:"24px 22px 20px",maxWidth:320,width:"100%"}}>
+            <div style={{fontSize:30,textAlign:"center",marginBottom:10}}>📤</div>
+            <div style={{fontSize:17,fontWeight:700,textAlign:"center",marginBottom:8}}>
+              {slotLabel(release.id)} 회수
+            </div>
+            <p style={{fontSize:13,color:c.muted,textAlign:"center",lineHeight:1.7,marginBottom:18}}>
+              <strong style={{color:c.text}}>{release.data?.userName}</strong>님의 짐을<br/>
+              회수 처리할까요?
+              {release.data?.userName !== user.name && user.isAdmin && (
+                <><br/><span style={{color:LC,fontSize:12}}>(관리자 권한으로 처리)</span></>
+              )}
+            </p>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setRelease(null)}
+                style={{flex:1,padding:11,background:"none",border:`1px solid ${c.border}`,borderRadius:10,
+                  color:c.muted,cursor:"pointer",fontSize:14}}>취소</button>
+              <button onClick={doRelease} disabled={syncing}
+                style={{flex:1,padding:11,background:`linear-gradient(135deg,${LC},#a87f4d)`,border:"none",
+                  borderRadius:10,color:"#1a1206",cursor:"pointer",fontSize:14,fontWeight:700}}>
+                {syncing?"처리 중":"회수"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function slotLabel(id) {
+  const n = String(id).replace(/\D/g,"");
+  const side = String(id).startsWith("L") ? "좌측" : "우측";
+  return `${side} ${n}번`;
+}
+
 // ── BETTING PAGE ──────────────────────────────────────────
 function BettingPage({ onBack, user, onUserUpdate }) {
   const [bets, setBets]           = useState([]);
@@ -3003,6 +3320,14 @@ function InstrumentsHub({ onBack, onNavigate, user }) {
       desc: "기타 주간 예약 시스템",
       color: c.guitar,
       sub: "주 4회 · 최대 12시간 · 3개",
+    },
+    {
+      id: "locker",
+      emoji: "🎒",
+      title: "로비 짐 보관",
+      desc: "무궁관 8층 로비 짐 보관함",
+      color: LOCKER_COLOR,
+      sub: "10칸 · 최대 24시간",
     },
   ];
 
@@ -5376,6 +5701,7 @@ function App() {
   if (page === "piano")   return <InstrumentPage type="piano"  onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "guitar")  return <InstrumentPage type="guitar" onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "rental")  return <RentalPage onBack={()=>setPage("instruments")} user={user}/>;
+  if (page === "locker")  return <LockerPage onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "contest")    return <ContestPage onBack={()=>setPage("home")} user={user}/>;
   if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "food")       return <FoodPage onBack={()=>setPage("home")}/>;
