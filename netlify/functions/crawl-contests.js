@@ -50,27 +50,56 @@ function endFromPeriod(p) {
   return all && all.length ? toMs(all[all.length - 1]) : 0;
 }
 
-// ─── 1) 서울과기대 게시판 ───
-async function seoultech(url, source, category, filterKeywords) {
-  const html = await (await fetch(url, { headers: H })).text();
+// ─── 1) 서울과기대 게시판 (페이지네이션 지원) ───
+// 페이징 파라미터는 page / size (nowpage 는 동작하지 않음)
+function parseSeoultechRows(html, url, source, category) {
   const out = [];
   const rows = html.split(/<tr class="body_tr">/).slice(1);
   for (const row of rows) {
     const a = row.match(/<td[^>]*class="tit dn2"[^>]*>\s*<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/);
-    if (!a) continue;
+    if (!a) continue;                                  // 상단 고정 요약글 등은 구조가 달라 제외
     const title = strip(a[2]);
     if (!title) continue;
-    const dept = strip((row.match(/<td class="dn4"[^>]*>([\s\S]*?)<\/td>/) || [])[1]);
-    const date = strip((row.match(/<td class="dn5"[^>]*>([\s\S]*?)<\/td>/) || [])[1]);
-    out.push({ source, category, title, org: dept, date, period: "", dday: "",
-               endAt: 0, link: abs(a[1], url) });
+    out.push({
+      source, category, title,
+      org:  strip((row.match(/<td class="dn4"[^>]*>([\s\S]*?)<\/td>/) || [])[1]),
+      date: strip((row.match(/<td class="dn5"[^>]*>([\s\S]*?)<\/td>/) || [])[1]),
+      period: "", dday: "", endAt: 0, link: abs(a[1], url),
+    });
   }
-  if (!filterKeywords) return out;
-  // 공지사항: 공모/경진/대외활동 키워드만
-  return out.filter(i => KEYWORDS.some(k => i.title.includes(k))
-                      && !EXCLUDE.some(k => i.title.includes(k)))
-            .map(i => ({ ...i, category: guessCategory(i.title) }));
+  return out;
 }
+
+async function seoultech(baseUrl, source, category, filterKeywords, pages = 3) {
+  const all = [];
+  const seen = new Set();
+  for (let pg = 1; pg <= pages; pg++) {
+    const url = `${baseUrl}?page=${pg}&size=15`;
+    let html;
+    try { html = await (await fetch(url, { headers: H })).text(); }
+    catch (e) { break; }
+    const rows = parseSeoultechRows(html, url, source, category);
+    if (rows.length === 0) break;
+    let added = 0;
+    for (const r of rows) {
+      const key = r.title + "|" + r.date;
+      if (seen.has(key)) continue;                     // 페이지 간 중복(고정 공지) 제거
+      seen.add(key); all.push(r); added++;
+    }
+    if (added === 0) break;                            // 새 항목이 없으면 마지막 페이지
+  }
+  // 등록일이 너무 오래된 건 제외 (마감 정보가 없어 무한 누적되는 것 방지)
+  const cutoff = Date.now() - SEOULTECH_MAX_AGE;
+  const fresh = all.filter(i => { const t = toMs(i.date); return !t || t >= cutoff; });
+
+  if (!filterKeywords) return fresh;
+  return fresh.filter(i => KEYWORDS.some(k => i.title.includes(k))
+                        && !EXCLUDE.some(k => i.title.includes(k)))
+              .map(i => ({ ...i, category: guessCategory(i.title) }));
+}
+
+// 과기대 게시판은 마감일이 없어 등록 후 60일까지만 수집
+const SEOULTECH_MAX_AGE = 90 * 24 * 3600 * 1000;
 
 const KEYWORDS = ["공모","경진","해커톤","아이디어톤","챌린지","콘테스트","대외활동",
                   "서포터즈","경연","대회","공모전","contest","challenge","hackathon",
@@ -230,10 +259,7 @@ function refineCategory(item) {
 }
 
 // ─── 2) 링커리어 (__NEXT_DATA__ JSON) ───
-async function linkareer() {
-  const html = await (await fetch("https://linkareer.com/list/contest", { headers: H })).text();
-  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) return [];
+async function linkareer(pages = 4) {
   const out = [], seen = new Set();
   const walk = (o) => {
     if (!o || typeof o !== "object") return;
@@ -250,7 +276,18 @@ async function linkareer() {
     }
     Object.values(o).forEach(walk);
   };
-  try { walk(JSON.parse(m[1])); } catch {}
+  for (let pg = 1; pg <= pages; pg++) {
+    try {
+      const url = pg === 1 ? "https://linkareer.com/list/contest"
+                           : `https://linkareer.com/list/contest?page=${pg}`;
+      const html = await (await fetch(url, { headers: H })).text();
+      const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+      if (!m) break;
+      const before = out.length;
+      walk(JSON.parse(m[1]));
+      if (out.length === before) break;     // 새 항목이 없으면 중단
+    } catch { break; }
+  }
   return out;
 }
 
@@ -258,7 +295,7 @@ async function linkareer() {
 async function thinkyou(kind) {
   const path = kind === "contest" ? "contest" : "extact";
   const ref  = kind === "contest" ? "contest" : "extAct";
-  const body = new URLSearchParams({ page:"1", pagesize:"45", serstatus:"", serdivision:"",
+  const body = new URLSearchParams({ page:"1", pagesize:"120", serstatus:"", serdivision:"",
     serfield:"", sertarget:"", serprizeMoney:"", seritem:"0", searchstr:"" });
   const r = await fetch(`https://thinkyou.co.kr/${path}/ajax_contestList.asp`, {
     method: "POST",
@@ -366,6 +403,7 @@ async function bdai() {
 function normTitle(t) {
   return String(t)
     .replace(/\[[^\]]*\]/g, " ").replace(/\([^)]*\)/g, " ")
+    .replace(/서울과학기술대학교|서울과기대|과기대/g, " ")
     .replace(/[「」『』<>《》]/g, " ")
     .replace(/제\s*\d+\s*[회차]/g, " ")
     .replace(/\d{4}\s*년?도?/g, " ")
@@ -379,7 +417,8 @@ const RANK = { "과기대 공모/외부행사":0, "과기대 공지사항":1,
 function dedupe(items) {
   const map = new Map(); let dropped = 0;
   for (const it of items) {
-    const key = it.category + "|" + normTitle(it.title);
+    // 카테고리를 키에 넣지 않음 — 같은 공고가 공모전/대외활동 양쪽에 등록된 경우도 1건으로 합침
+    const key = normTitle(it.title);
     if (!normTitle(it.title)) continue;
     const prev = map.get(key);
     if (!prev) { map.set(key, it); continue; }
@@ -397,8 +436,8 @@ function dedupe(items) {
 // ─── 실행 ───
 async function runCrawl() {
   const tasks = [
-    ["과기대 공모/외부행사", () => seoultech("https://www.seoultech.ac.kr/service/board/rec","과기대 공모/외부행사","공모전",false)],
-    ["과기대 공지사항",      () => seoultech("https://www.seoultech.ac.kr/service/info/notice","과기대 공지사항","공모전",true)],
+    ["과기대 공모/외부행사", () => seoultech("https://www.seoultech.ac.kr/service/board/rec","과기대 공모/외부행사","공모전",false,4)],
+    ["과기대 공지사항",      () => seoultech("https://www.seoultech.ac.kr/service/info/notice","과기대 공지사항","공모전",true,4)],
     ["링커리어",             linkareer],
     ["씽유 공모전",          () => thinkyou("contest")],
     ["씽유 대외활동",        () => thinkyou("extAct")],
