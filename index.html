@@ -56,7 +56,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ── CONFIG ────────────────────────────────────────────────
 const VAPID_PUBLIC_KEY = 'BFR6cLQKBHSaFAHeEBrvDYu-Oc-mykF3UUT1Ism-c4DII9yTegFTBekytVYdgm4S20Ek5CDCTuJEGaMI0PF4Mzc';
@@ -1886,8 +1886,37 @@ function AdminPanelPage({ onBack }) {
     finally { setSyncing(false); setDeleteTarget(null); }
   }
 
+  // 반납되지 않은 대여 로그 id 집합
+  // 같은 (물품 + 사용자) 기준으로 대여/반납을 시간순 선입선출로 짝지어,
+  // 짝이 없는 대여만 "대여중"으로 남김 → 반납 로그가 생기면 자동으로 해소됨
+  const outstandingIds = useMemo(() => {
+    const asc = [...logs].sort((a,b)=>(a.at||0)-(b.at||0));
+    const pending = {};
+    asc.forEach(l=>{
+      if(l.type!=="borrow" && l.type!=="return") return;
+      const key = `${l.itemId}__${l.userName}`;
+      if(!pending[key]) pending[key] = [];
+      if(l.type==="borrow") pending[key].push(l.id);
+      else pending[key].shift();   // 반납 1건 → 가장 오래된 대여 1건 해소
+    });
+    return new Set(Object.values(pending).flat());
+  }, [logs]);
+
+  // 대여 후 경과 시간
+  const fmtElapsed = (ts) => {
+    if(!ts) return "";
+    const ms = Date.now() - ts;
+    const d = Math.floor(ms/86400000);
+    const h = Math.floor((ms%86400000)/3600000);
+    const m = Math.floor((ms%3600000)/60000);
+    if(d>0) return `${d}일 ${h}시간 경과`;
+    if(h>0) return `${h}시간 ${m}분 경과`;
+    return `${m}분 경과`;
+  };
+
   const typeLabel = { borrow:"대여", return:"반납", disposable:"가져가기" };
   const typeColor = { borrow:c.guitar, return:c.success, disposable:c.rental };
+  const OUT_COLOR = "#f0c060";
 
   if(loading) return (
     <div style={{minHeight:"100vh",background:c.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
@@ -1974,28 +2003,71 @@ function AdminPanelPage({ onBack }) {
         {/* 활동 로그 */}
         {tab==="logs" && (
           <div>
+            {/* 현재 대여중 요약 */}
+            {outstandingIds.size > 0 && (
+              <div style={{background:`${OUT_COLOR}12`,border:`1px solid ${OUT_COLOR}44`,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:16}}>📦</span>
+                <div style={{flex:1,fontSize:13,color:OUT_COLOR,fontWeight:700}}>
+                  현재 대여중 {outstandingIds.size}건
+                  <span style={{fontWeight:400,color:c.muted,fontSize:12,marginLeft:6}}>· 아직 반납되지 않았어요</span>
+                </div>
+                {logFilter!=="out" && (
+                  <button onClick={()=>setLogFilter("out")}
+                    style={{padding:"3px 10px",background:"none",border:`1px solid ${OUT_COLOR}55`,borderRadius:20,color:OUT_COLOR,fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+                    보기
+                  </button>
+                )}
+              </div>
+            )}
+
             <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-              {[{id:"all",label:"전체"},{id:"borrow",label:"대여"},{id:"return",label:"반납"},{id:"disposable",label:"일회용품"}].map(f=>(
+              {[{id:"all",label:"전체"},{id:"out",label:`대여중${outstandingIds.size?" "+outstandingIds.size:""}`},{id:"borrow",label:"대여"},{id:"return",label:"반납"},{id:"disposable",label:"일회용품"}].map(f=>{
+                const active = logFilter===f.id;
+                const isOutChip = f.id==="out";
+                const ac = isOutChip ? OUT_COLOR : "#e87e7e";
+                return (
                 <button key={f.id} onClick={()=>setLogFilter(f.id)}
-                  style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${logFilter===f.id?"#e87e7e":c.border}`,background:logFilter===f.id?"#e87e7e20":"none",color:logFilter===f.id?"#e87e7e":c.muted,fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                  style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${active?ac:c.border}`,background:active?`${ac}20`:"none",color:active?ac:c.muted,fontSize:12,fontWeight:600,cursor:"pointer"}}>
                   {f.label}
                 </button>
-              ))}
+              );})}
             </div>
-            {logs.filter(l=>logFilter==="all"||l.type===logFilter).length===0
-              ? <div style={{textAlign:"center",color:c.muted,fontSize:13,padding:"40px 0"}}>로그 없음</div>
-              : logs.filter(l=>logFilter==="all"||l.type===logFilter).map((log,i)=>(
-                  <div key={i} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
-                    <span style={{fontSize:11,fontWeight:700,color:typeColor[log.type]||c.muted,background:`${typeColor[log.type]||c.muted}15`,border:`1px solid ${typeColor[log.type]||c.muted}33`,borderRadius:20,padding:"2px 8px",flexShrink:0}}>
-                      {typeLabel[log.type]||log.type}
+
+            {(()=>{
+              const shown = logs.filter(l=>{
+                if(logFilter==="all") return true;
+                if(logFilter==="out") return l.type==="borrow" && outstandingIds.has(l.id);
+                return l.type===logFilter;
+              });
+              if(shown.length===0) return (
+                <div style={{textAlign:"center",color:c.muted,fontSize:13,padding:"40px 0"}}>
+                  {logFilter==="out" ? "🎉 모두 반납됐어요" : "로그 없음"}
+                </div>
+              );
+              return shown.map((log,i)=>{
+                const isOut = log.type==="borrow" && outstandingIds.has(log.id);
+                const lbl = isOut ? "대여중" : (typeLabel[log.type]||log.type);
+                const col = isOut ? OUT_COLOR : (typeColor[log.type]||c.muted);
+                return (
+                  <div key={i} style={{background:c.surface,border:`1px solid ${isOut?OUT_COLOR+"44":c.border}`,borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}15`,border:`1px solid ${col}33`,borderRadius:20,padding:"2px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:4}}>
+                      {isOut && <span style={{width:5,height:5,borderRadius:"50%",background:OUT_COLOR,display:"inline-block"}}/>}
+                      {lbl}
                     </span>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:c.text}}>{log.userName} <span style={{color:c.muted,fontWeight:400,fontSize:12}}>· {log.itemName}</span></div>
-                      <div style={{fontSize:11,color:c.muted}}>{fmtTime(log.at)}{log.type==="return"&&log.borrowedAt?` (대여: ${fmtTime(log.borrowedAt)})`:""}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:c.text}}>
+                        {log.userName} <span style={{color:c.muted,fontWeight:400,fontSize:12}}>· {log.itemLabel||log.itemName}</span>
+                      </div>
+                      <div style={{fontSize:11,color:isOut?OUT_COLOR:c.muted}}>
+                        {fmtTime(log.at)}
+                        {isOut ? ` · ${fmtElapsed(log.at)}` : ""}
+                        {log.type==="return"&&log.borrowedAt?` (대여: ${fmtTime(log.borrowedAt)})`:""}
+                      </div>
                     </div>
                   </div>
-                ))
-            }
+                );
+              });
+            })()}
           </div>
         )}
 
@@ -3553,17 +3625,67 @@ function MyScheduleTab({ grade, user, TC }) {
 }
 
 // ── TEAM PROJECT PAGE ────────────────────────────────────
-const GRADE_SUBJECTS = {
-  1: ["Presentation", "영어청취"],
-  2: ["CAD", "C Programming", "Communication"],
-  3: ["CAD/CAM", "Control", "Fluid Mechanics", "Machine Elements"],
+// 최초 1회 Firebase에 시드로 넣는 기본값. 이후에는 Firebase 값이 우선.
+// 최초 1회 Firebase에 시드로 넣는 기본값. 이후에는 Firebase 값이 우선.
+// Firebase가 "1","2" 같은 숫자 키를 배열로 자동 변환하는 걸 막기 위해 s1/s2 키를 사용
+const DEFAULT_GRADE_SUBJECTS = {
+  1: { s1: ["Presentation", "영어청취"], s2: [] },
+  2: { s1: ["CAD", "C Programming", "Communication"], s2: [] },
+  3: { s1: ["CAD/CAM", "Control", "Fluid Mechanics", "Machine Elements"], s2: [] },
+  4: { s1: [], s2: [] },
 };
+
+// 3~8월은 1학기, 9~2월은 2학기
+function getCurrentSemester() {
+  const m = new Date().getMonth() + 1;
+  return (m >= 3 && m <= 8) ? 1 : 2;
+}
+
+// 문자열 목록만 추출 (Firebase가 배열/객체 어느 쪽으로 주든 처리)
+function toSubjList(v) {
+  if (Array.isArray(v)) return v.filter(s=>typeof s==="string" && s.trim());
+  if (v && typeof v === "object") return Object.values(v).filter(s=>typeof s==="string" && s.trim());
+  return [];
+}
+
+// Firebase 데이터를 {학년: {1:[...], 2:[...]}} 형태로 정규화
+// 학기 구분이 없던 구버전 데이터는 1학기로 옮겨줌
+function normalizeSubjects(data) {
+  const out = {};
+  [1,2,3,4].forEach(g=>{
+    const raw = data ? data[g] : null;
+    const sem = { 1: [], 2: [] };
+    if (Array.isArray(raw)) {
+      sem[1] = toSubjList(raw);                  // 구버전(배열)
+    } else if (raw && typeof raw === "object") {
+      if (raw.s1 !== undefined || raw.s2 !== undefined) {
+        sem[1] = toSubjList(raw.s1);
+        sem[2] = toSubjList(raw.s2);
+      } else {
+        sem[1] = toSubjList(raw);                // 구버전(객체)
+      }
+    }
+    out[g] = sem;
+  });
+  return out;
+}
 
 function TeamProjectPage({ onBack, user, onUserUpdate }) {
   const TC = "#a0d0a0";
   const savedGrade = user.gradeSet ? (user.grade || null) : null;
   const [mainTab, setMainTab]   = useState("schedule"); // schedule | subjects
-  const [view, setView]         = useState(savedGrade ? "subjects" : "grade");
+  const [view, setView]         = useState(user.isAdmin ? "adminSubjects" : (savedGrade ? "subjects" : "grade"));
+  // ── 과목 목록 (Firebase 공유) ──
+  const [subjectsMap, setSubjectsMap] = useState(normalizeSubjects(DEFAULT_GRADE_SUBJECTS));
+  const [subjLoading, setSubjLoading] = useState(true);
+  const [semester, setSemester]       = useState(getCurrentSemester()); // 학생: 보고 있는 학기
+  // 관리자 편집 상태
+  const [adminGrade, setAdminGrade]   = useState(null);
+  const [adminSem, setAdminSem]       = useState(getCurrentSemester());
+  const [editList, setEditList]       = useState([]);
+  const [newSubj, setNewSubj]         = useState("");
+  const [subjSaving, setSubjSaving]   = useState(false);
+  const [subjMsg, setSubjMsg]         = useState("");
   const [grade, setGrade]       = useState(savedGrade);
   const [confirmGrade, setConfirmGrade] = useState(null);
   const [subject, setSubject]   = useState(null);
@@ -3599,6 +3721,48 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
   const inp = {width:"100%",padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,borderRadius:8,color:c.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
 
   // 학년 저장
+  // 과목 목록 로드 (없으면 기본값 시드)
+  const loadSubjects = useCallback(async (quiet=false) => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/grade_subjects.json`);
+      const data = await res.json();
+      if (data) {
+        setSubjectsMap(normalizeSubjects(data));
+      } else {
+        await fetch(`${FIREBASE_URL}/grade_subjects.json`, {
+          method:"PUT", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify(DEFAULT_GRADE_SUBJECTS)
+        });
+        setSubjectsMap(normalizeSubjects(DEFAULT_GRADE_SUBJECTS));
+      }
+    } catch(e) { console.error("과목 로드 실패", e); }
+    finally { if(!quiet) setSubjLoading(false); }
+  }, []);
+
+  useEffect(()=>{ loadSubjects(); }, []);
+  // 과목이 바뀌면 다른 사람 화면에도 반영 (15초 폴링)
+  useEffect(()=>{ const id=setInterval(()=>loadSubjects(true),15000); return ()=>clearInterval(id); }, []);
+
+  // 관리자: 학년/학기별 과목 저장
+  async function saveSubjects() {
+    const uniq = [...new Set(editList.map(s=>s.trim()).filter(Boolean))];
+    setSubjSaving(true); setSubjMsg("");
+    try {
+      await fetch(`${FIREBASE_URL}/grade_subjects/${adminGrade}/s${adminSem}.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify(uniq.length ? uniq : null)
+      });
+      setSubjectsMap(prev=>({
+        ...prev,
+        [adminGrade]: { ...(prev[adminGrade]||{1:[],2:[]}), [adminSem]: uniq }
+      }));
+      setEditList(uniq);
+      setSubjMsg(`✅ ${adminGrade}학년 ${adminSem}학기 저장 완료. 모든 사용자에게 적용됩니다.`);
+      setTimeout(()=>setSubjMsg(""), 3000);
+    } catch(e) { setSubjMsg("⚠️ 저장 중 오류가 발생했어요."); }
+    finally { setSubjSaving(false); }
+  }
+
   async function saveGrade(g) {
     setGrade(g);
     await fetch(`${FIREBASE_URL}/users/${encodeURIComponent(user.name)}.json`, {
@@ -3677,6 +3841,128 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
     setMembers(newMembers);
   }
 
+  // ── 관리자: 학년별 과목 관리 ──
+  if (view==="adminSubjects") return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={()=>{ if(adminGrade){setAdminGrade(null);setSubjMsg("");} else onBack(); }}
+          style={{background:`${TC}18`,border:`1px solid ${TC}44`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:TC,fontSize:13,fontWeight:600}}>
+          {adminGrade ? "← 학년" : "← 홈"}
+        </button>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:20}}>⚙️</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:TC}}>팀플 과목 관리</h1>
+          </div>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>
+            {adminGrade ? `${adminGrade}학년 ${adminSem}학기 과목 편집` : "관리자 전용 · 모든 사용자에게 적용"}
+          </p>
+        </div>
+      </div>
+
+      <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
+        {subjLoading ? <div style={{textAlign:"center",padding:"40px",color:c.muted}}>불러오는 중...</div>
+        : !adminGrade ? (
+          /* 학년 선택 */
+          <>
+            <div style={{fontSize:13,color:c.muted,textAlign:"center",marginBottom:20,lineHeight:1.6}}>
+              수정할 학년을 선택하세요.<br/>변경 내용은 <strong style={{color:TC}}>모든 학생 계정</strong>에 바로 반영돼요.
+            </div>
+            {[1,2,3,4].map(g=>{
+              const s1 = (subjectsMap[g]?.[1]||[]).length;
+              const s2 = (subjectsMap[g]?.[2]||[]).length;
+              return (
+              <button key={g} onClick={()=>{setAdminGrade(g);setAdminSem(getCurrentSemester());setEditList([...(subjectsMap[g]?.[getCurrentSemester()]||[])]);setNewSubj("");setSubjMsg("");}}
+                style={{width:"100%",padding:"16px 18px",background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,color:c.text,cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=TC+"66"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=c.border}>
+                <span>{g}학년</span>
+                <span style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:11,color:s1?TC:c.muted,background:s1?`${TC}15`:"none",border:`1px solid ${s1?TC+"33":c.border}`,borderRadius:20,padding:"2px 8px"}}>1학기 {s1}</span>
+                  <span style={{fontSize:11,color:s2?TC:c.muted,background:s2?`${TC}15`:"none",border:`1px solid ${s2?TC+"33":c.border}`,borderRadius:20,padding:"2px 8px"}}>2학기 {s2}</span>
+                  <span style={{fontSize:18,color:TC+"88"}}>›</span>
+                </span>
+              </button>
+            );})}
+          </>
+        ) : (
+          /* 과목 편집 */
+          <>
+            {/* 학기 선택 */}
+            <div style={{display:"flex",background:c.surface,borderRadius:12,padding:4,marginBottom:16}}>
+              {[1,2].map(s=>(
+                <button key={s} onClick={()=>{setAdminSem(s);setEditList([...(subjectsMap[adminGrade]?.[s]||[])]);setNewSubj("");setSubjMsg("");}}
+                  style={{flex:1,padding:"10px",border:"none",borderRadius:9,cursor:"pointer",fontSize:14,fontWeight:700,transition:"all 0.2s",
+                    background:adminSem===s?`${TC}22`:"transparent",
+                    color:adminSem===s?TC:c.muted}}>
+                  {s}학기
+                  <span style={{fontSize:11,fontWeight:400,marginLeft:5,opacity:0.8}}>
+                    ({(subjectsMap[adminGrade]?.[s]||[]).length})
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>
+              {adminGrade}학년 {adminSem}학기 과목 ({editList.length}개)
+            </div>
+
+            {editList.length===0 && (
+              <div style={{textAlign:"center",padding:"30px 0",color:c.muted}}>
+                <div style={{fontSize:32,marginBottom:8}}>📚</div>
+                <div style={{fontSize:13}}>과목을 추가해주세요</div>
+              </div>
+            )}
+
+            {editList.map((s,i)=>(
+              <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+                <div style={{width:32,height:32,borderRadius:8,background:`${TC}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📖</div>
+                <input value={s} onChange={e=>{const arr=[...editList];arr[i]=e.target.value;setEditList(arr);}}
+                  placeholder="과목명"
+                  style={{...inp,flex:1,marginBottom:0}}/>
+                <button onClick={()=>setEditList(prev=>prev.filter((_,j)=>j!==i))}
+                  style={{padding:"8px 12px",background:`${c.error}15`,border:`1px solid ${c.error}33`,borderRadius:8,color:c.error,cursor:"pointer",fontSize:12,fontWeight:600,flexShrink:0}}>삭제</button>
+              </div>
+            ))}
+
+            {/* 과목 추가 */}
+            <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,padding:"12px",marginTop:14,marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:TC,marginBottom:8}}>+ 과목 추가</div>
+              <div style={{display:"flex",gap:8}}>
+                <input value={newSubj} onChange={e=>setNewSubj(e.target.value)}
+                  onKeyDown={e=>{ if(e.key==="Enter"&&newSubj.trim()){setEditList(prev=>[...prev,newSubj.trim()]);setNewSubj("");} }}
+                  placeholder="예: Thermodynamics"
+                  style={{...inp,flex:1,marginBottom:0}}/>
+                <button onClick={()=>{ if(newSubj.trim()){setEditList(prev=>[...prev,newSubj.trim()]);setNewSubj("");} }}
+                  disabled={!newSubj.trim()}
+                  style={{padding:"10px 16px",background:newSubj.trim()?`linear-gradient(135deg,${TC},#70b070)`:c.surface2,border:"none",borderRadius:8,color:newSubj.trim()?"#0a0d14":c.muted,fontWeight:700,cursor:newSubj.trim()?"pointer":"not-allowed",fontSize:13,flexShrink:0}}>추가</button>
+              </div>
+            </div>
+
+            {subjMsg && (
+              <div style={{background:subjMsg.startsWith("✅")?`${c.success}15`:`${c.error}15`,border:`1px solid ${subjMsg.startsWith("✅")?c.success:c.error}44`,borderRadius:10,padding:"10px 14px",fontSize:13,color:subjMsg.startsWith("✅")?c.success:c.error,marginBottom:12}}>
+                {subjMsg}
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setEditList([...(subjectsMap[adminGrade]?.[adminSem]||[])]);setNewSubj("");setSubjMsg("");}}
+                style={{flex:1,padding:"12px",background:"none",border:`1px solid ${c.border}`,borderRadius:12,color:c.muted,cursor:"pointer",fontSize:14,fontWeight:600}}>되돌리기</button>
+              <button onClick={saveSubjects} disabled={subjSaving}
+                style={{flex:2,padding:"12px",background:`linear-gradient(135deg,${TC},#70b070)`,border:"none",borderRadius:12,color:"#0a0d14",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                {subjSaving?"저장 중...":"💾 저장하기"}
+              </button>
+            </div>
+
+            <div style={{fontSize:11,color:c.muted,marginTop:12,lineHeight:1.6}}>
+              💡 과목명을 바꾸면 그 과목에 이미 만들어진 팀은 이전 이름 그대로 남아요. 이름 변경보다 <strong>추가/삭제</strong>를 권장해요.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   // 학년 선택
   if (view==="grade") return (
     <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif"}}>
@@ -3697,7 +3983,8 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
             <button key={g} onClick={()=>setConfirmGrade(g)}
               style={{padding:"16px",background:c.surface,border:`1px solid ${confirmGrade===g?TC:c.border}`,borderRadius:14,color:confirmGrade===g?TC:c.text,cursor:"pointer",fontSize:15,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span>{g}학년</span>
-              {GRADE_SUBJECTS[g] ? <span style={{fontSize:12,color:TC,background:`${TC}15`,borderRadius:20,padding:"2px 10px"}}>과목 있음</span>
+              {((subjectsMap[g]?.[1]||[]).length + (subjectsMap[g]?.[2]||[]).length) > 0
+                ? <span style={{fontSize:12,color:TC,background:`${TC}15`,borderRadius:20,padding:"2px 10px"}}>과목 {(subjectsMap[g]?.[1]||[]).length + (subjectsMap[g]?.[2]||[]).length}개</span>
                 : <span style={{fontSize:12,color:c.muted}}>과목 추가 예정</span>}
             </button>
           ))}
@@ -3753,12 +4040,28 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
       {/* 과목별 팀 탭 */}
       {mainTab==="subjects" && (
         <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
-          {(GRADE_SUBJECTS[grade]||[]).length === 0
+          {/* 학기 선택 */}
+          <div style={{display:"flex",background:c.surface,borderRadius:12,padding:4,marginBottom:16}}>
+            {[1,2].map(s=>(
+              <button key={s} onClick={()=>setSemester(s)}
+                style={{flex:1,padding:"10px",border:"none",borderRadius:9,cursor:"pointer",fontSize:14,fontWeight:700,transition:"all 0.2s",
+                  background:semester===s?`${TC}22`:"transparent",
+                  color:semester===s?TC:c.muted}}>
+                {s}학기
+                {s===getCurrentSemester() && (
+                  <span style={{fontSize:10,fontWeight:600,marginLeft:5,color:semester===s?TC:c.muted,opacity:0.8}}>· 현재</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {(subjectsMap[grade]?.[semester]||[]).length === 0
             ? <div style={{textAlign:"center",padding:"60px 0",color:c.muted}}>
                 <div style={{fontSize:40,marginBottom:12}}>📚</div>
-                <div>아직 등록된 과목이 없어요</div>
+                <div>{grade}학년 {semester}학기에 등록된 과목이 없어요</div>
+                <div style={{fontSize:12,marginTop:6}}>관리자가 과목을 추가하면 표시돼요</div>
               </div>
-            : (GRADE_SUBJECTS[grade]||[]).map((subj,i)=>(
+            : (subjectsMap[grade]?.[semester]||[]).map((subj,i)=>(
                 <button key={i} onClick={()=>loadTeams(subj)}
                   style={{width:"100%",background:c.surface,border:`1px solid ${c.border}`,borderRadius:14,padding:"18px 20px",cursor:"pointer",textAlign:"left",color:c.text,marginBottom:10,display:"flex",alignItems:"center",gap:14,transition:"all 0.15s"}}
                   onMouseEnter={e=>{e.currentTarget.style.borderColor=TC+"66";}}
@@ -3787,7 +4090,7 @@ function TeamProjectPage({ onBack, user, onUserUpdate }) {
             <span style={{fontSize:20}}>📖</span>
             <h1 style={{margin:0,fontSize:20,fontWeight:700,color:TC}}>{subject}</h1>
           </div>
-          <p style={{margin:0,fontSize:12,color:c.muted}}>팀 목록</p>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>{grade}학년 {semester}학기 · 팀 목록</p>
         </div>
       </div>
       <div style={{padding:"20px",maxWidth:480,margin:"0 auto"}}>
