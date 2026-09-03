@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
   <title>MSDE 대여시스템</title>
-  <meta name="description" content="메디어소프트웨어디자인공학과 대여시스템"/>
+  <meta name="description" content="MSDE학과 대여시스템"/>
   <meta name="theme-color" content="#0a0d14"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -800,7 +800,8 @@ function InstrumentPage({ type, onBack, user }) {
 }
 
 // ── RENTAL BUSINESS PAGE ─────────────────────────────────
-const ITEMS = [
+// 최초 1회 Firebase 에 시드로 저장되는 기본 목록. 이후에는 Firebase 값이 우선.
+const DEFAULT_ITEMS = [
   // 일회용품
   { id:"toothbrush",  name:"칫솔",           emoji:"🪥", disposable:true },
   { id:"toothpaste",  name:"치약",           emoji:"🧴", disposable:true },
@@ -820,11 +821,229 @@ const ITEMS = [
   { id:"adapter",     name:"충전기 어댑터",  emoji:"🔌", total:5,  category:"전자기기" },
 ];
 
-const ITEM_CATEGORIES = [
+const DEFAULT_ITEM_CATEGORIES = [
   { key:"측정·절단", emoji:"📏" },
   { key:"사무용품",  emoji:"✂️"  },
   { key:"전자기기",  emoji:"🔌" },
 ];
+
+// Firebase 는 배열을 객체로 반환할 수 있어 정규화 필요
+function normList(v) {
+  if (Array.isArray(v)) return v.filter(Boolean);
+  if (v && typeof v === "object") return Object.values(v).filter(Boolean);
+  return [];
+}
+
+// 이모지가 없는 공구를 위한 직접 제작 아이콘 (SVG)
+const CUSTOM_ICON_LABELS = {"pliers": "뺀찌", "nipper": "니퍼", "powerstrip": "멀티탭", "solder": "인두기", "tape": "줄자", "vise": "바이스", "drill": "드릴"};
+function CustomToolIcon({ name, size = 22 }) {
+  const p = { width:size, height:size, viewBox:"0 0 24 24", xmlns:"http://www.w3.org/2000/svg" };
+  switch (name) {
+    case "pliers": return (
+      <svg {...p}>
+      <path d="M8.6 2.2 L15.4 2.2 L14.2 6.4 L9.8 6.4 Z" fill="currentColor" stroke="none"/>
+      <path d="M9.4 6.6 L10.9 10.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4"/>
+      <path d="M14.6 6.6 L13.1 10.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4"/>
+      <circle cx="12" cy="11.8" r="2.2" fill="currentColor" stroke="none"/>
+      <path d="M10.4 13.6 L8.8 21.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.4"/>
+      <path d="M13.6 13.6 L15.2 21.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.4"/>
+      </svg>);
+    case "nipper": return (
+      <svg {...p}>
+      <path d="M4.2 4.4 L11 9.6 L11 12 L8.4 12 L3 7.6 Z" fill="currentColor" stroke="none"/>
+      <path d="M19.8 4.4 L13 9.6 L13 12 L15.6 12 L21 7.6 Z" fill="currentColor" stroke="none"/>
+      <circle cx="12" cy="13" r="2.1" fill="currentColor" stroke="none"/>
+      <path d="M11.2 14.8 L10.4 21.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2"/>
+      <path d="M12.8 14.8 L13.6 21.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2"/>
+      </svg>);
+    case "powerstrip": return (
+      <svg {...p}>
+      <rect x="1.8" y="6.6" width="17.4" height="10.8" rx="3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
+      <rect x="3.9" y="9.6" width="2.4" height="4.8" rx="1.1" fill="currentColor" stroke="none"/>
+      <circle cx="9.6" cy="12" r="2" fill="currentColor" stroke="none"/>
+      <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+      <path d="M19.2 12 C21.4 12 21.4 8.8 22.8 8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9"/>
+      </svg>);
+    case "solder": return (
+      <svg {...p}>
+      <path d="M3.4 20.6 L10.4 13.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4.6"/>
+      <path d="M11 13 L16.6 7.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4"/>
+      <path d="M17.2 6.8 L20.4 3.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4"/>
+      <circle cx="21.2" cy="2.8" r="1.5" fill="currentColor" stroke="none"/>
+      </svg>);
+    case "tape": return (
+      <svg {...p}>
+      <circle cx="9" cy="14" r="7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2"/>
+      <circle cx="9" cy="14" r="2.2" fill="currentColor" stroke="none"/>
+      <path d="M14.6 9.6 L21.8 4.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.4"/>
+      </svg>);
+    case "vise": return (
+      <svg {...p}>
+      <rect x="2.4" y="7.6" width="5" height="8.4" rx="1.2" fill="currentColor" stroke="none"/>
+      <rect x="11.6" y="7.6" width="5" height="8.4" rx="1.2" fill="currentColor" stroke="none"/>
+      <path d="M16.8 11.8 L21.6 11.8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4"/>
+      <path d="M21.6 9 L21.6 14.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4"/>
+      <path d="M1.6 18.4 L17.6 18.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.8"/>
+      </svg>);
+    case "drill": return (
+      <svg {...p}>
+      <rect x="2.8" y="5.8" width="11" height="7" rx="2.2" fill="currentColor" stroke="none"/>
+      <path d="M14 9.3 L18.6 9.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3"/>
+      <path d="M18.6 9.3 L22 9.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6"/>
+      <path d="M6.2 13 L5.2 19.8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4"/>
+      <path d="M2.8 20.4 L8 20.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.6"/>
+      </svg>);
+    default: return <span style={{fontSize:size}}>📦</span>;
+  }
+}
+
+// 물품 아이콘 렌더 — 이모지가 아닌 글자(예: "뺀찌")면 배지처럼 표시
+function ItemIcon({ value, size = 22 }) {
+  const v = (value || "📦").trim();
+  // 직접 제작 아이콘 (svg:pliers 등)
+  if (v.startsWith("svg:")) {
+    return (
+      <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+        width:size*1.15,height:size*1.15,color:c.text}}>
+        <CustomToolIcon name={v.slice(4)} size={Math.round(size*0.98)}/>
+      </span>
+    );
+  }
+  const isText = /[가-힣A-Za-z0-9]/.test(v);
+  if (!isText) return <span style={{fontSize:size,lineHeight:1}}>{v}</span>;
+  // 1~2자는 한 줄, 3자 이상은 두 줄로 감싸 가독성 확보
+  const fs = v.length <= 1 ? Math.round(size * 0.72)
+           : v.length === 2 ? Math.round(size * 0.52)
+           : Math.round(size * 0.42);
+  return (
+    <span style={{fontSize:fs,fontWeight:800,lineHeight:1.1,letterSpacing:"-0.5px",
+      display:"inline-flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap",
+      width:size*1.15,height:size*1.15,textAlign:"center",overflow:"hidden",
+      wordBreak:"break-all",color:c.text}}>
+      {v}
+    </span>
+  );
+}
+
+// 물품용 이모지 모음 (학과 대여 물품 기준으로 선별)
+const EMOJI_GROUPS = [
+  ["공구·정비",   ["🔧","🔨","🛠️","⚒️","🪛","🪚","🗜️","⚙️","🧰","🔩","🪝","⛓️","🔗","⛏️","🪓","🪵","🧱","🪤"]],
+  ["전기·전자",   ["🔌","⚡","🔋","💡","🧲","🔥","🕯️","📡","🛰️","💻","🖥️","⌨️","🖱️","🖨️","📱","🎧","🔊","🎙️","🔦","📷","📹","🎮","💾","💿"]],
+  ["측정·제도",   ["📏","📐","🧮","⏱️","⏲️","⌛","🌡️","⚖️","🧭","🔍","🔎","📊","🗓️"]],
+  ["절단·가공",   ["✂️","🔪","🪒","🧵","🪡","🧶","🪢","🩹","💧","♨️"]],
+  ["실험·안전",   ["🧪","🧫","🔬","🥼","🧤","🥽","😷","🦺","⛑️","🧯","☢️","⚠️"]],
+  ["사무·문구",   ["✏️","🖊️","🖋️","🖍️","📝","📎","🖇️","📌","📍","🧷","🗂️","📁","📋","📒","📓","📔","🗒️","📚","🔖","🏷️","📕","📗","📘","📙"]],
+  ["위생·일회용", ["🪥","🧴","🧼","🧻","🧽","🪣","🚿","💊","🩺","🧺"]],
+  ["기타",       ["📦","🎒","🗃️","🪑","🔑","🗝️","⏰","🎯","🎁","🪙","🧊","☂️","🔔","🏓","⚽","🎨","🎵","🍽️"]],
+];
+
+// 이모지 선택 패널
+function EmojiPickerPanel({ value, onPick, onClose }) {
+  const [custom, setCustom] = useState("");
+  return (
+    <div style={{background:c.bg,border:`1px solid ${c.rental}44`,borderRadius:10,
+      padding:"12px",marginBottom:10,maxHeight:260,overflowY:"auto"}}>
+      <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+        <div style={{flex:1,fontSize:11.5,fontWeight:700,color:c.rental}}>이모지 선택</div>
+        <button onClick={onClose}
+          style={{background:"none",border:"none",color:c.muted,cursor:"pointer",fontSize:12}}>닫기</button>
+      </div>
+      {/* 직접 제작 아이콘 — 이모지가 없는 공구용 */}
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:10.5,color:c.rental,marginBottom:4,fontWeight:700}}>
+          공구 아이콘 <span style={{color:c.muted,fontWeight:400}}>(이모지에 없는 것)</span>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+          {Object.keys(CUSTOM_ICON_LABELS).map(k=>{
+            const key = "svg:"+k;
+            return (
+              <button key={k} onClick={()=>{onPick(key);onClose();}}
+                title={CUSTOM_ICON_LABELS[k]}
+                style={{width:44,height:46,background:value===key?`${c.rental}30`:c.surface,
+                  border:`1px solid ${value===key?c.rental:c.border}`,borderRadius:8,
+                  cursor:"pointer",padding:0,color:c.text,
+                  display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+                <CustomToolIcon name={k} size={22}/>
+                <span style={{fontSize:8.5,color:c.muted,lineHeight:1}}>{CUSTOM_ICON_LABELS[k]}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {EMOJI_GROUPS.map(([label, list])=>(
+        <div key={label} style={{marginBottom:10}}>
+          <div style={{fontSize:10.5,color:c.muted,marginBottom:4}}>{label}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+            {list.map(em=>(
+              <button key={em} onClick={()=>{onPick(em);onClose();}}
+                style={{width:34,height:34,fontSize:18,lineHeight:1,
+                  background:value===em?`${c.rental}30`:c.surface,
+                  border:`1px solid ${value===em?c.rental:c.border}`,
+                  borderRadius:8,cursor:"pointer",padding:0}}>
+                {em}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div style={{borderTop:`1px solid ${c.border}`,paddingTop:9,marginTop:2}}>
+        <div style={{fontSize:10.5,color:c.muted,marginBottom:5,lineHeight:1.6}}>
+          아이콘 대신 <strong style={{color:c.text}}>글자</strong>로 표시할 수도 있어요
+        </div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+          {["납","글루건","오실로","납흡입기","테스터","클램프"].map(tx=>(
+            <button key={tx} onClick={()=>{onPick(tx);onClose();}}
+              style={{padding:"5px 9px",background:value===tx?`${c.rental}30`:c.surface,
+                border:`1px solid ${value===tx?c.rental:c.border}`,borderRadius:7,
+                color:c.text,fontSize:11.5,fontWeight:700,cursor:"pointer"}}>
+              {tx}
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:10.5,color:c.muted,marginBottom:4}}>직접 입력 (이모지 또는 글자 1~3자)</div>
+        <div style={{display:"flex",gap:6}}>
+          <input value={custom} onChange={e=>setCustom(e.target.value)} maxLength={4}
+            onKeyDown={e=>{ if(e.key==="Enter"&&custom.trim()){onPick(custom.trim());onClose();} }}
+            placeholder="예: 🔧 또는 뺀찌"
+            style={{flex:1,padding:"8px 10px",background:c.surface2,border:`1px solid ${c.border}`,
+              borderRadius:8,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+          <button onClick={()=>{ if(custom.trim()){onPick(custom.trim());onClose();} }} disabled={!custom.trim()}
+            style={{padding:"8px 13px",background:custom.trim()?`${c.rental}20`:"none",
+              border:`1px solid ${custom.trim()?c.rental:c.border}`,borderRadius:8,
+              color:custom.trim()?c.rental:c.muted,fontSize:12.5,fontWeight:700,
+              cursor:custom.trim()?"pointer":"not-allowed",flexShrink:0}}>적용</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 분류 추가 입력 (관리자 물품관리용)
+function CategoryAdder({ onAdd }) {
+  const [key, setKey] = useState("");
+  const [emoji, setEmoji] = useState("📦");
+  const submit = () => { if(key.trim()){ onAdd(key, emoji); setKey(""); setEmoji("📦"); } };
+  return (
+    <div style={{display:"flex",gap:6}}>
+      <select value={emoji} onChange={e=>setEmoji(e.target.value)}
+        style={{width:64,padding:"9px 4px",background:c.surface2,border:`1px solid ${c.border}`,
+          borderRadius:8,color:c.text,fontSize:16,outline:"none",textAlign:"center",boxSizing:"border-box"}}>
+        {["📦","🔧","🔌","📏","✂️","🧪","🖊️","🪥","💻","🧰"].map(e=><option key={e} value={e}>{e}</option>)}
+      </select>
+      <input value={key} onChange={e=>setKey(e.target.value)}
+        onKeyDown={e=>{ if(e.key==="Enter") submit(); }}
+        placeholder="새 분류명 (예: 공구)"
+        style={{flex:1,padding:"9px 12px",background:c.surface2,border:`1px solid ${c.border}`,
+          borderRadius:8,color:c.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+      <button onClick={submit} disabled={!key.trim()}
+        style={{padding:"9px 14px",background:key.trim()?`${c.rental}20`:"none",
+          border:`1px solid ${key.trim()?c.rental:c.border}`,borderRadius:8,
+          color:key.trim()?c.rental:c.muted,fontSize:12.5,fontWeight:700,
+          cursor:key.trim()?"pointer":"not-allowed",flexShrink:0,whiteSpace:"nowrap"}}>추가</button>
+    </div>
+  );
+}
 
 function RentalPage({ onBack, user }) {
   const [rentals, setRentals]     = useState([]);
@@ -836,16 +1055,37 @@ function RentalPage({ onBack, user }) {
   const [returning, setReturning] = useState(null);
   const [msg, setMsg]             = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  // ── 물품 카탈로그 (Firebase 공유) ──
+  const [items, setItems]           = useState(DEFAULT_ITEMS);
+  const [categories, setCategories] = useState(DEFAULT_ITEM_CATEGORIES);
+  const [manageMode, setManageMode] = useState(false);   // 관리자 편집 모드
+  const [editItem, setEditItem]     = useState(null);    // 편집 중인 물품
+  const [catalogMsg, setCatalogMsg] = useState("");
+  const [emojiOpen, setEmojiOpen]   = useState(false);
 
   const showMsg = (text, ok=true) => { setMsg({text,ok}); setTimeout(()=>setMsg(null),2500); };
 
   const load = useCallback(async (quiet=false) => {
     try {
       if(!quiet) setLoading(true);
-      const [r, l] = await Promise.all([fbList("rental_items"), fbList("rental_logs")]);
+      const [r, l, cat] = await Promise.all([
+        fbList("rental_items"), fbList("rental_logs"),
+        fetch(`${FIREBASE_URL}/rental_catalog.json`).then(x=>x.json()),
+      ]);
       setRentals(r);
       setLogs(l.sort((a,b)=>b.at-a.at));
-
+      if (cat && (cat.items || cat.categories)) {
+        const it = normList(cat.items);
+        const cg = normList(cat.categories);
+        if (it.length) setItems(it);
+        if (cg.length) setCategories(cg);
+      } else {
+        // 최초 실행: 기본 목록을 Firebase 에 시드
+        await fetch(`${FIREBASE_URL}/rental_catalog.json`, {
+          method:"PUT", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ items: DEFAULT_ITEMS, categories: DEFAULT_ITEM_CATEGORIES, updatedAt: Date.now() })
+        });
+      }
     } catch(e){ console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -855,8 +1095,84 @@ function RentalPage({ onBack, user }) {
 
   const myRentals = rentals.filter(r => r.userName === user.name && r.status === "out");
   const getInUse  = (itemId) => rentals.filter(r => r.itemId===itemId && r.status==="out").length;
-  const getAvail  = (itemId) => { const item = ITEMS.find(i=>i.id===itemId); return item.total - getInUse(itemId); };
+  const getAvail  = (itemId) => { const item = items.find(i=>i.id===itemId); return (item?.total||0) - getInUse(itemId); };
   const myItem    = (itemId) => myRentals.find(r => r.itemId===itemId) || null;
+
+  // ── 관리자: 물품 카탈로그 저장 ──
+  async function saveCatalog(nextItems, nextCats, okMsg) {
+    setSyncing(true); setCatalogMsg("");
+    try {
+      await fetch(`${FIREBASE_URL}/rental_catalog.json`, {
+        method:"PUT", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          items: nextItems ?? items,
+          categories: nextCats ?? categories,
+          updatedAt: Date.now(), updatedBy: user.name,
+        })
+      });
+      if (nextItems) setItems(nextItems);
+      if (nextCats)  setCategories(nextCats);
+      setCatalogMsg(okMsg || "✅ 저장했어요. 모든 사용자에게 적용됩니다.");
+      setTimeout(()=>setCatalogMsg(""), 3000);
+      return true;
+    } catch(e) { setCatalogMsg("⚠️ 저장 중 오류가 발생했어요."); return false; }
+    finally { setSyncing(false); }
+  }
+
+  // 물품 추가/수정
+  async function upsertItem(draft) {
+    const name = (draft.name||"").trim();
+    if (!name) { setCatalogMsg("⚠️ 물품명을 입력해주세요."); return; }
+    const isDisposable = !!draft.disposable;
+    if (!isDisposable) {
+      const t = Number(draft.total);
+      if (!t || t < 1) { setCatalogMsg("⚠️ 수량은 1개 이상이어야 해요."); return; }
+      if (!(draft.category||"").trim()) { setCatalogMsg("⚠️ 분류를 선택해주세요."); return; }
+    }
+    const id = draft.id || ("item_" + Date.now().toString(36));
+    const entry = isDisposable
+      ? { id, name, emoji: draft.emoji || "📦", disposable: true }
+      : { id, name, emoji: draft.emoji || "📦", total: Number(draft.total), category: draft.category.trim() };
+
+    const exists = items.some(i => i.id === id);
+    // 이름 중복 방지
+    if (items.some(i => i.id !== id && i.name === name)) {
+      setCatalogMsg("⚠️ 같은 이름의 물품이 이미 있어요."); return;
+    }
+    const next = exists ? items.map(i => i.id === id ? entry : i) : [...items, entry];
+    const ok = await saveCatalog(next, null, exists ? `✅ ${name} 수정 완료` : `✅ ${name} 추가 완료`);
+    if (ok) setEditItem(null);
+  }
+
+  // 물품 삭제 (대여 중이면 차단)
+  async function removeItem(item) {
+    if (getInUse(item.id) > 0) {
+      setCatalogMsg(`⚠️ ${item.name}은 대여 중이라 삭제할 수 없어요. 반납 후 삭제해주세요.`);
+      setTimeout(()=>setCatalogMsg(""), 4000);
+      return;
+    }
+    if (!window.confirm(`"${item.name}"을 목록에서 삭제할까요?\n(기존 대여 기록은 그대로 남아요)`)) return;
+    await saveCatalog(items.filter(i => i.id !== item.id), null, `✅ ${item.name} 삭제 완료`);
+    setEditItem(null);
+  }
+
+  // 분류 추가/삭제
+  async function addCategory(key, emoji) {
+    const k = (key||"").trim();
+    if (!k) return;
+    if (categories.some(c => c.key === k)) { setCatalogMsg("⚠️ 이미 있는 분류예요."); return; }
+    await saveCatalog(null, [...categories, { key:k, emoji: emoji || "📦" }], `✅ 분류 "${k}" 추가`);
+  }
+  async function removeCategory(key) {
+    const used = items.filter(i => i.category === key);
+    if (used.length) {
+      setCatalogMsg(`⚠️ "${key}" 분류에 물품 ${used.length}개가 있어요. 먼저 옮기거나 삭제해주세요.`);
+      setTimeout(()=>setCatalogMsg(""), 4000);
+      return;
+    }
+    if (!window.confirm(`분류 "${key}"를 삭제할까요?`)) return;
+    await saveCatalog(null, categories.filter(c => c.key !== key), `✅ 분류 "${key}" 삭제`);
+  }
 
   async function doTake(item) {
     // 일회용품: 그냥 로그만 남김
@@ -940,13 +1256,175 @@ function RentalPage({ onBack, user }) {
           </div>
           <p style={{margin:0,fontSize:12,color:c.muted}}>반납할 때 반납 버튼만 누르면 돼요</p>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:syncing?c.rental:c.muted}}>
-          <div style={{width:7,height:7,borderRadius:"50%",background:syncing?c.rental:c.success,boxShadow:`0 0 6px ${syncing?c.rental:c.success}`,animation:syncing?"pulse 1s infinite":"none"}}/>
-          {syncing?"저장 중...":""}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          {user.isAdmin && (
+            <button onClick={()=>{setManageMode(v=>!v);setEditItem(null);setCatalogMsg("");}}
+              style={{background:manageMode?`${c.rental}25`:"none",
+                border:`1px solid ${manageMode?c.rental:c.border}`,borderRadius:8,
+                padding:"6px 11px",cursor:"pointer",color:manageMode?c.rental:c.muted,
+                fontSize:12,fontWeight:600,whiteSpace:"nowrap"}}>
+              {manageMode?"✓ 관리중":"⚙️ 물품관리"}
+            </button>
+          )}
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:syncing?c.rental:c.muted}}>
+            <div style={{width:7,height:7,borderRadius:"50%",background:syncing?c.rental:c.success,boxShadow:`0 0 6px ${syncing?c.rental:c.success}`,animation:syncing?"pulse 1s infinite":"none"}}/>
+            {syncing?"저장 중...":""}
+          </div>
         </div>
       </div>
 
       <div style={{padding:"16px 20px",maxWidth:480,margin:"0 auto"}}>
+
+        {/* ── 관리자: 물품 카탈로그 관리 ── */}
+        {user.isAdmin && manageMode && (
+          <div style={{marginBottom:22}}>
+            <div style={{background:`${c.rental}10`,border:`1px solid ${c.rental}44`,borderRadius:14,
+              padding:"14px 16px",marginBottom:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:c.rental,marginBottom:4}}>⚙️ 물품 관리</div>
+              <div style={{fontSize:11.5,color:c.muted,lineHeight:1.6}}>
+                여기서 수정한 내용은 <strong style={{color:c.text}}>모든 학생 화면</strong>에 바로 반영돼요.
+                대여 중인 물품은 삭제할 수 없어요.
+              </div>
+            </div>
+
+            {catalogMsg && (
+              <div style={{background:catalogMsg.startsWith("✅")?`${c.success}15`:`${c.error}15`,
+                border:`1px solid ${catalogMsg.startsWith("✅")?c.success:c.error}44`,borderRadius:10,
+                padding:"10px 14px",fontSize:12.5,
+                color:catalogMsg.startsWith("✅")?c.success:c.error,marginBottom:12}}>
+                {catalogMsg}
+              </div>
+            )}
+
+            {!editItem && (
+              <button onClick={()=>{setEmojiOpen(false);setEditItem({ id:"", name:"", emoji:"📦", total:1, category:categories[0]?.key||"", disposable:false });}}
+                style={{width:"100%",padding:"11px",background:`linear-gradient(135deg,${c.rental},${c.rental}cc)`,
+                  border:"none",borderRadius:12,color:c.bg,fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:14}}>
+                + 새 물품 추가
+              </button>
+            )}
+
+            {editItem && (
+              <div style={{background:c.surface,border:`1px solid ${c.rental}55`,borderRadius:14,
+                padding:"14px 16px",marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:700,color:c.rental,marginBottom:12}}>
+                  {editItem.id ? `✏️ ${editItem.name || "물품"} 수정` : "➕ 새 물품 추가"}
+                </div>
+
+                <div style={{display:"flex",gap:8,marginBottom:8}}>
+                  <button onClick={()=>setEmojiOpen(v=>!v)} title="이모지 선택"
+                    style={{width:58,padding:"10px 8px",background:c.surface2,
+                      border:`1px solid ${emojiOpen?c.rental:c.border}`,borderRadius:8,
+                      color:c.text,fontSize:20,cursor:"pointer",lineHeight:1,
+                      display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <ItemIcon value={editItem.emoji} size={20}/>
+                  </button>
+                  <input value={editItem.name} onChange={e=>setEditItem({...editItem,name:e.target.value})}
+                    placeholder="물품명 (예: 인두기)"
+                    style={{flex:1,padding:"10px 12px",background:c.surface2,border:`1px solid ${c.border}`,
+                      borderRadius:8,color:c.text,fontSize:14,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+                </div>
+
+                {emojiOpen && (
+                  <EmojiPickerPanel value={editItem.emoji}
+                    onPick={em=>setEditItem({...editItem,emoji:em})}
+                    onClose={()=>setEmojiOpen(false)}/>
+                )}
+
+                <div style={{display:"flex",background:c.bg,borderRadius:9,padding:3,marginBottom:10}}>
+                  {[{v:false,l:"🔁 대여 물품"},{v:true,l:"🪥 일회용품"}].map(o=>(
+                    <button key={String(o.v)} onClick={()=>setEditItem({...editItem,disposable:o.v})}
+                      style={{flex:1,padding:"8px",border:"none",borderRadius:7,cursor:"pointer",fontSize:12.5,
+                        fontWeight:editItem.disposable===o.v?700:400,
+                        background:editItem.disposable===o.v?c.surface:"transparent",
+                        color:editItem.disposable===o.v?c.rental:c.muted}}>
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+
+                {!editItem.disposable && (
+                  <div style={{display:"flex",gap:8,marginBottom:10}}>
+                    <div style={{width:92}}>
+                      <label style={{fontSize:10.5,color:c.muted,display:"block",marginBottom:4}}>수량</label>
+                      <input type="number" min={1} value={editItem.total}
+                        onChange={e=>setEditItem({...editItem,total:e.target.value})}
+                        style={{width:"100%",padding:"9px 10px",background:c.surface2,border:`1px solid ${c.border}`,
+                          borderRadius:8,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <label style={{fontSize:10.5,color:c.muted,display:"block",marginBottom:4}}>분류</label>
+                      <select value={editItem.category}
+                        onChange={e=>setEditItem({...editItem,category:e.target.value})}
+                        style={{width:"100%",padding:"9px 10px",background:c.surface2,border:`1px solid ${c.border}`,
+                          borderRadius:8,color:c.text,fontSize:14,outline:"none",boxSizing:"border-box"}}>
+                        {categories.map(cg=><option key={cg.key} value={cg.key}>{cg.emoji} {cg.key}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{display:"flex",gap:8}}>
+                  {editItem.id && (
+                    <button onClick={()=>removeItem(items.find(i=>i.id===editItem.id)||editItem)}
+                      style={{flex:1,padding:"10px",background:`${c.error}15`,border:`1px solid ${c.error}44`,
+                        borderRadius:10,color:c.error,fontSize:13,fontWeight:600,cursor:"pointer"}}>삭제</button>
+                  )}
+                  <button onClick={()=>{setEditItem(null);setCatalogMsg("");setEmojiOpen(false);}}
+                    style={{flex:1,padding:"10px",background:"none",border:`1px solid ${c.border}`,
+                      borderRadius:10,color:c.muted,fontSize:13,cursor:"pointer"}}>취소</button>
+                  <button onClick={()=>upsertItem(editItem)} disabled={syncing}
+                    style={{flex:2,padding:"10px",background:`linear-gradient(135deg,${c.rental},${c.rental}cc)`,
+                      border:"none",borderRadius:10,color:c.bg,fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                    {syncing?"저장 중...":"저장"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",
+              letterSpacing:"1px",marginBottom:8}}>등록 물품 ({items.length}개)</div>
+            {items.map(it=>{
+              const inUse = getInUse(it.id);
+              return (
+                <div key={it.id} onClick={()=>{ setEmojiOpen(false); setEditItem({
+                    id:it.id, name:it.name, emoji:it.emoji||"📦",
+                    total:it.total||1, category:it.category||categories[0]?.key||"",
+                    disposable:!!it.disposable }); }}
+                  style={{background:c.surface,border:`1px solid ${editItem?.id===it.id?c.rental:c.border}`,
+                    borderRadius:10,padding:"10px 13px",marginBottom:6,cursor:"pointer",
+                    display:"flex",alignItems:"center",gap:11}}>
+                  <span style={{display:"inline-flex",width:22,justifyContent:"center"}}><ItemIcon value={it.emoji} size={19}/></span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13.5,fontWeight:700,color:c.text}}>{it.name}</div>
+                    <div style={{fontSize:11,color:c.muted}}>
+                      {it.disposable ? "일회용품" : `${it.category} · 전체 ${it.total}개`}
+                      {inUse>0 && <span style={{color:c.rental}}> · 대여중 {inUse}</span>}
+                    </div>
+                  </div>
+                  <span style={{fontSize:11,color:c.muted}}>수정 ›</span>
+                </div>
+              );
+            })}
+
+            <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",
+              letterSpacing:"1px",marginTop:16,marginBottom:8}}>분류 ({categories.length}개)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+              {categories.map(cg=>(
+                <div key={cg.key} style={{display:"flex",alignItems:"center",gap:5,background:c.surface,
+                  border:`1px solid ${c.border}`,borderRadius:20,padding:"5px 10px"}}>
+                  <span style={{fontSize:12,color:c.text}}>{cg.emoji} {cg.key}</span>
+                  <button onClick={()=>removeCategory(cg.key)}
+                    style={{background:"none",border:"none",color:c.error,cursor:"pointer",
+                      fontSize:13,padding:0,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+            <CategoryAdder onAdd={addCategory}/>
+
+            <div style={{height:1,background:c.border,margin:"20px 0"}}/>
+          </div>
+        )}
 
         {/* 내가 대여중 */}
         {myRentals.length > 0 && (
@@ -955,7 +1433,7 @@ function RentalPage({ onBack, user }) {
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {myRentals.map(r => (
                 <div key={r.fbKey} style={{background:c.surface,border:`1px solid ${c.rental}44`,borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{fontSize:22}}>{ITEMS.find(i=>i.id===r.itemId)?.emoji||"📦"}</div>
+                  <div><ItemIcon value={items.find(i=>i.id===r.itemId)?.emoji} size={22}/></div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:700,color:c.text}}>{r.itemLabel||r.itemName}</div>
                     <div style={{fontSize:11,color:c.muted}}>대여: {fmtTime(r.borrowedAt)}</div>
@@ -974,10 +1452,10 @@ function RentalPage({ onBack, user }) {
         {/* 일회용품 */}
         <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>🪥 일회용품</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:24}}>
-          {ITEMS.filter(i=>i.disposable).map(item=>(
+          {items.filter(i=>i.disposable).map(item=>(
             <div key={item.id} style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:12,padding:"12px",position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${c.rental}88,transparent)`}}/>
-              <div style={{fontSize:26}}>{item.emoji}</div>
+              <div><ItemIcon value={item.emoji} size={26}/></div>
               <div style={{fontSize:14,fontWeight:700,color:c.text}}>{item.name}</div>
               <button onClick={()=>setConfirm(item)} style={{width:"100%",padding:"6px",background:`linear-gradient(135deg,${c.rental},${c.rental}cc)`,border:"none",borderRadius:7,color:c.bg,fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 가져가기
@@ -987,8 +1465,8 @@ function RentalPage({ onBack, user }) {
         </div>
 
         {/* 카테고리별 대여 물품 */}
-        {ITEM_CATEGORIES.map(cat=>{
-          const catItems = ITEMS.filter(i=>i.category===cat.key);
+        {categories.map(cat=>{
+          const catItems = items.filter(i=>i.category===cat.key);
           return (
             <div key={cat.key} style={{marginBottom:20}}>
               <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>{cat.emoji} {cat.key}</div>
@@ -1003,7 +1481,7 @@ function RentalPage({ onBack, user }) {
                     <div key={item.id} style={{background:c.surface,border:`1px solid ${full&&!isMine?c.error+"44":c.border}`,borderRadius:12,padding:"12px 14px",position:"relative",overflow:"hidden"}}>
                       <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${c.rental}${full?"33":"88"},transparent)`}}/>
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <div style={{fontSize:22,flexShrink:0}}>{item.emoji}</div>
+                        <div style={{flexShrink:0}}><ItemIcon value={item.emoji} size={22}/></div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{fontSize:14,fontWeight:700,color:c.text,marginBottom:3}}>{item.name}</div>
                           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -1083,7 +1561,7 @@ function RentalPage({ onBack, user }) {
       {returning && (
         <div style={{position:"fixed",inset:0,background:"#00000088",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}} onClick={()=>setReturning(null)}>
           <div style={{background:c.surface,border:`1px solid ${c.border}`,borderRadius:18,padding:"26px 24px 20px",maxWidth:300,width:"90%"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:32,textAlign:"center",marginBottom:10}}>{ITEMS.find(i=>i.id===returning.itemId)?.emoji||"📦"}</div>
+            <div style={{textAlign:"center",marginBottom:10}}><ItemIcon value={items.find(i=>i.id===returning.itemId)?.emoji} size={32}/></div>
             <div style={{fontSize:17,fontWeight:700,marginBottom:6,textAlign:"center"}}>{returning.itemName} 반납</div>
             <p style={{fontSize:14,color:c.muted,marginBottom:18,lineHeight:1.6,textAlign:"center"}}>
               <strong style={{color:c.rental}}>{returning.itemName}</strong>을(를)<br/>반납할까요?
@@ -1374,10 +1852,20 @@ const LOCKER_SLOTS = [
   ["R", [6,7,8,9,10]],   // 우측 선반 6~10
 ];
 const LOCKER_LIMIT_MS = 24 * 3600 * 1000;
+// 재예약 쿨타임: 사용한 시간의 절반 (최대 12시간). 1시간 미만 사용은 면제.
+const LOCKER_COOLDOWN_MAX = 12 * 3600 * 1000;
+const LOCKER_COOLDOWN_FREE = 1 * 3600 * 1000;
+// 빈 칸이 이 개수 이하로 남았을 때만 쿨타임을 적용 (자리가 넉넉하면 그냥 사용 허용)
+const LOCKER_TIGHT_FREE = 3;
+function cooldownFor(usedMs) {
+  if (!usedMs || usedMs < LOCKER_COOLDOWN_FREE) return 0;
+  return Math.min(Math.floor(usedMs / 2), LOCKER_COOLDOWN_MAX);
+}
 
 function LockerPage({ onBack, user }) {
   const LC = LOCKER_COLOR;
   const [slots, setSlots]     = useState({});
+  const [cooldown, setCooldown] = useState(null);   // { until, usedMs }
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [target, setTarget]   = useState(null);   // 보관 확인할 칸
@@ -1391,8 +1879,12 @@ function LockerPage({ onBack, user }) {
   const load = useCallback(async (quiet=false) => {
     try {
       if(!quiet) setLoading(true);
-      const res = await fetch(`${FIREBASE_URL}/lockers.json`);
-      setSlots(await res.json() || {});
+      const [s, cd] = await Promise.all([
+        fetch(`${FIREBASE_URL}/lockers.json`).then(r=>r.json()),
+        fetch(`${FIREBASE_URL}/locker_cooldown/${encodeURIComponent(user.name)}.json`).then(r=>r.json()),
+      ]);
+      setSlots(s || {});
+      setCooldown(cd && cd.until > Date.now() ? cd : null);
     } catch(e){ console.error(e); }
     finally { setLoading(false); }
   }, []);
@@ -1402,6 +1894,10 @@ function LockerPage({ onBack, user }) {
 
   const mySlot = Object.entries(slots).find(([,v]) => v && v.userName === user.name);
   const usedCount = Object.values(slots).filter(Boolean).length;
+  const freeCount = 10 - usedCount;
+  // 쿨타임이 남아 있어도, 빈 칸이 넉넉하면 실제로 막지 않음
+  const inCooldown     = !!(cooldown && cooldown.until > Date.now());
+  const cooldownBlocking = inCooldown && !user.isAdmin && freeCount <= LOCKER_TIGHT_FREE;
 
   // 남은 시간 계산
   const remainOf = (v) => {
@@ -1419,17 +1915,38 @@ function LockerPage({ onBack, user }) {
     const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000);
     return h>0 ? `${h}시간 ${m}분 남음` : `${m}분 남음`;
   };
+  // 쿨타임/기간 표기용 (남음·초과 같은 수식어 없이)
+  const fmtDur = (ms) => {
+    const v = Math.max(0, ms);
+    const h = Math.floor(v/3600000), m = Math.floor((v%3600000)/60000);
+    return h>0 ? `${h}시간 ${m}분` : `${m}분`;
+  };
 
   async function doReserve() {
     if(!target) return;
     // 1인 1칸 제한
     if(mySlot) { setTarget(null); return showMsg("이미 사용 중인 칸이 있어요. 1인 1칸만 가능해요.", false); }
+    // 재예약 쿨타임 — 단, 빈 칸이 넉넉하면 적용하지 않음
+    if(!user.isAdmin && cooldownBlocking) {
+      setTarget(null);
+      return showMsg(`자리가 부족해 재예약 대기 중이에요 · ${fmtDur(cooldown.until - Date.now())} 남음`, false);
+    }
     setSyncing(true);
     try {
-      // 최신 상태 재확인 (동시 예약 방지)
-      const latest = await fetch(`${FIREBASE_URL}/lockers.json`).then(r=>r.json()) || {};
-      if(latest[target]) { showMsg("방금 다른 분이 사용했어요.", false); await load(true); return; }
-      if(Object.values(latest).some(v=>v && v.userName===user.name)) {
+      // 최신 상태 재확인 (동시 예약 / 쿨타임 우회 방지)
+      const [latest, cdNow] = await Promise.all([
+        fetch(`${FIREBASE_URL}/lockers.json`).then(r=>r.json()),
+        fetch(`${FIREBASE_URL}/locker_cooldown/${encodeURIComponent(user.name)}.json`).then(r=>r.json()),
+      ]);
+      const cur = latest || {};
+      // 저장 직전 기준으로 빈 칸 수 재계산 (그 사이 자리가 찼을 수 있음)
+      const freeNow = 10 - Object.values(cur).filter(Boolean).length;
+      if(!user.isAdmin && cdNow && cdNow.until > Date.now() && freeNow <= LOCKER_TIGHT_FREE) {
+        showMsg(`자리가 부족해 재예약 대기 중이에요 · ${fmtDur(cdNow.until - Date.now())} 남음`, false);
+        setCooldown(cdNow); await load(true); return;
+      }
+      if(cur[target]) { showMsg("방금 다른 분이 사용했어요.", false); await load(true); return; }
+      if(Object.values(cur).some(v=>v && v.userName===user.name)) {
         showMsg("이미 사용 중인 칸이 있어요.", false); await load(true); return;
       }
       const data = { userName:user.name, studentId:user.studentId||"", note:note.trim(), at:Date.now() };
@@ -1450,14 +1967,30 @@ function LockerPage({ onBack, user }) {
     if(!release) return;
     setSyncing(true);
     try {
+      const owner = release.data?.userName || "";
+      const usedMs = release.data?.at ? Date.now() - release.data.at : 0;
+      const cd = cooldownFor(usedMs);
+
       await fetch(`${FIREBASE_URL}/lockers/${release.id}.json`, { method:"DELETE" });
+
+      // 사용한 사람에게 재예약 쿨타임 부여 (관리자 본인 사용분은 면제)
+      if(owner && !(owner === user.name && user.isAdmin) && cd > 0) {
+        await fetch(`${FIREBASE_URL}/locker_cooldown/${encodeURIComponent(owner)}.json`, {
+          method:"PUT", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ until: Date.now() + cd, usedMs, at: Date.now() })
+        });
+      }
       await fetch(`${FIREBASE_URL}/locker_logs.json`, {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ type:"out", slot:release.id, userName:release.data?.userName||"",
-                              by:user.name, at:Date.now() })
+        body:JSON.stringify({ type:"out", slot:release.id, userName:owner,
+                              by:user.name, usedMs, cooldownMs:cd, at:Date.now() })
       });
       await load(true);
-      showMsg(`✅ ${slotLabel(release.id)} 회수 완료`);
+      if(owner === user.name && cd > 0) {
+        showMsg(`✅ 회수 완료 · 다음 보관은 ${fmtDur(cd)} 뒤부터 가능해요`);
+      } else {
+        showMsg(`✅ ${slotLabel(release.id)} 회수 완료`);
+      }
     } catch(e){ showMsg("오류가 발생했습니다.", false); }
     finally { setSyncing(false); setRelease(null); }
   }
@@ -1549,6 +2082,12 @@ function LockerPage({ onBack, user }) {
             <div style={{color:c.error,fontWeight:700,marginTop:10,marginBottom:6}}>⚠️ 주의사항</div>
             <div>· <strong style={{color:c.error}}>개인 사물함처럼 이용하지 말아주세요</strong></div>
             <div>· 장기 보관 금지 · 1인 1칸만 사용 가능해요</div>
+            <div>· <strong style={{color:c.text}}>자리가 부족할 때만</strong> 재예약 대기가 생겨요 (빈 칸 {LOCKER_TIGHT_FREE}개 이하)</div>
+            <div style={{fontSize:11.5,opacity:0.85,paddingLeft:10,lineHeight:1.7}}>
+              · 빈 칸이 넉넉하면 회수 직후에도 바로 사용 가능해요<br/>
+              · 자리가 부족하면 <strong style={{color:c.text}}>사용한 시간의 절반</strong>만큼 대기해요 (최대 12시간)<br/>
+              · 예) 24시간 사용 → 12시간 / 3시간 사용 → 1시간 30분 / 1시간 미만 → 없음
+            </div>
             <div style={{marginTop:10,fontSize:11,color:c.muted,opacity:0.8}}>
               MSDE학과 제25대 CLOUD 학생회
             </div>
@@ -1580,6 +2119,34 @@ function LockerPage({ onBack, user }) {
           );
         })()}
 
+        {/* 재예약 쿨타임 안내 (자리 상황에 따라 다르게) */}
+        {!mySlot && inCooldown && !user.isAdmin && (
+          cooldownBlocking ? (
+            <div style={{background:"#f0c06012",border:"1px solid #f0c06055",borderRadius:12,
+              padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:22}}>⏳</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#f0c060"}}>
+                  자리 부족 · 재예약 대기 중 (빈 칸 {freeCount}개)
+                </div>
+                <div style={{fontSize:11,color:c.muted,lineHeight:1.5}}>
+                  {fmtDur(cooldown.until - Date.now())} 후 또는 자리가 넉넉해지면 사용할 수 있어요
+                  {cooldown.usedMs ? ` · 직전 ${fmtDur(cooldown.usedMs)} 사용` : ""}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{background:`${c.success}10`,border:`1px solid ${c.success}33`,borderRadius:12,
+              padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontSize:18}}>👍</div>
+              <div style={{flex:1,fontSize:12,color:c.success,lineHeight:1.5}}>
+                빈 칸이 넉넉해서 바로 사용할 수 있어요
+                <span style={{color:c.muted}}> · 자리가 부족해지면 {fmtDur(cooldown.until - Date.now())} 대기가 적용돼요</span>
+              </div>
+            </div>
+          )
+        )}
+
         {/* 선반 (사진과 같은 2열 구조) */}
         <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>
           선반 현황 · 칸을 눌러 보관
@@ -1599,6 +2166,7 @@ function LockerPage({ onBack, user }) {
 
         <div style={{marginTop:12,fontSize:11,color:c.muted,lineHeight:1.7}}>
           💡 회수하면 바로 다음 사람이 쓸 수 있어요. 24시간이 지나면 <span style={{color:c.error}}>초과</span>로 표시돼요.
+          <div style={{marginTop:4}}>빈 칸이 {LOCKER_TIGHT_FREE}개 이하로 줄면, 방금 오래 쓴 사람은 잠시 대기해요.</div>
           {user.isAdmin && <div style={{color:LC,marginTop:4}}>🛡️ 관리자는 모든 칸을 회수 처리할 수 있어요.</div>}
         </div>
       </div>
@@ -1626,6 +2194,11 @@ function LockerPage({ onBack, user }) {
             <div style={{fontSize:12,color:c.muted,textAlign:"center",marginBottom:16,lineHeight:1.6}}>
               {user.name} · 최대 <strong style={{color:LC}}>24시간</strong>까지 보관 가능해요<br/>
               1인 1칸만 사용할 수 있어요
+            </div>
+            <div style={{background:"#f0c06010",border:"1px solid #f0c06033",borderRadius:8,
+              padding:"8px 12px",fontSize:11,color:"#f0c060",lineHeight:1.6,marginBottom:14}}>
+              ⏳ 회수 후 <strong>자리가 부족할 때</strong>는 사용한 시간의 절반만큼 대기해요.
+              빈 칸이 넉넉하면 바로 다시 사용할 수 있어요.
             </div>
             <input value={note} onChange={e=>setNote(e.target.value)} maxLength={20}
               placeholder="물품 메모 (선택, 예: 검정 백팩)"
@@ -3338,10 +3911,10 @@ function InstrumentsHub({ onBack, onNavigate, user }) {
         <button onClick={onBack} style={{background:`${c.piano}15`,border:`1px solid ${c.piano}33`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:c.piano,fontSize:13,fontWeight:600}}>← 홈</button>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-            <span style={{fontSize:20}}>📦🎹🎸</span>
+            <span style={{fontSize:18}}>📦🎹🎸🎒</span>
             <h1 style={{margin:0,fontSize:20,fontWeight:700,color:c.piano}}>물품 / 악기 대여</h1>
           </div>
-          <p style={{margin:0,fontSize:12,color:c.muted}}>대여사업 물품 · 건반 · 기타</p>
+          <p style={{margin:0,fontSize:12,color:c.muted}}>대여사업 물품 · 건반 · 기타 · 로비 짐 보관</p>
         </div>
       </div>
 
@@ -5147,9 +5720,9 @@ function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
       id: "instruments",
       emoji: "📦",
       title: "물품 / 악기 대여",
-      desc: "대여사업 물품 · 건반 · 기타 대여",
+      desc: "물품 · 건반 · 기타 · 로비 짐 보관",
       color: c.piano,
-      sub: "대여사업 물품 / 건반 / 기타",
+      sub: "대여사업 물품 / 건반 / 기타 / 짐 보관",
     },
     {
       id: "teamproject",
