@@ -1120,6 +1120,253 @@ function RentalPage({ onBack, user }) {
 }
 
 
+// ── CONTEST / JOB PAGE ────────────────────────────────────
+function ContestPage({ onBack, user }) {
+  const CC = "#c77ee8";
+  const [data, setData]       = useState({ items: [], updatedAt: 0 });
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]         = useState("공모전");
+  const [search, setSearch]   = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [msg, setMsg]         = useState("");
+  const [showClosed, setShowClosed] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${FIREBASE_URL}/contests.json`);
+      const d = await res.json();
+      setData(d && d.items ? d : { items: [], updatedAt: 0 });
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(()=>{ load(); },[]);
+
+  // 관리자 수동 수집
+  async function doRefresh() {
+    setRefreshing(true); setMsg("");
+    try {
+      const r = await fetch("/.netlify/functions/crawl-contests?secret=msde2026push");
+      const j = await r.json();
+      if (j.ok) { await load(); setMsg(`✅ ${j.saved}건 갱신 완료`); }
+      else setMsg("⚠️ 수집 실패: " + (j.error||"").slice(0,60));
+    } catch(e) { setMsg("⚠️ 호출 실패 (배포 후 사용 가능)"); }
+    finally { setRefreshing(false); setTimeout(()=>setMsg(""),4000); }
+  }
+
+  const TABS = ["공모전","경진대회","대외활동","교육"];
+  const [field, setField] = useState("전체");
+  const [onlyRel, setOnlyRel] = useState(true);   // MSDE 관련만 보기 (기본 ON)
+  const allRaw = data.items || [];
+  const all = onlyRel ? allRaw.filter(i => i.relevant !== false) : allRaw;
+  const hiddenCount = allRaw.length - allRaw.filter(i => i.relevant !== false).length;
+
+  // 현재 탭의 분야 목록 (건수 많은 순, 진행중 기준)
+  const inTab = all.filter(i => i.category === tab);
+  const fieldCounts = {};
+  inTab.filter(i=>!i.closed).forEach(i => {
+    const f = i.field || "기타";
+    fieldCounts[f] = (fieldCounts[f]||0)+1;
+  });
+  const fieldList = Object.entries(fieldCounts)
+    .sort((a,b)=> a[0]==="기타" ? 1 : b[0]==="기타" ? -1 : b[1]-a[1])
+    .map(([k])=>k);
+  const showFields = fieldList.length > 1;
+
+  const filtered = inTab.filter(i =>
+    (!showFields || field === "전체" || (i.field||"기타") === field) &&
+    (!search.trim() || (i.title+" "+(i.org||"")).toLowerCase().includes(search.trim().toLowerCase()))
+  );
+  const open   = filtered.filter(i => !i.closed);
+  const closed = filtered.filter(i => i.closed);
+
+  const ddayOf = (i) => {
+    if (!i.endAt || i.endAt <= 1) return i.dday || "";
+    const d = Math.ceil((i.endAt - Date.now())/86400000);
+    return d < 0 ? "마감" : d === 0 ? "오늘 마감" : `D-${d}`;
+  };
+  const ddayColor = (i) => {
+    if (!i.endAt || i.endAt <= 1) return c.muted;
+    const d = Math.ceil((i.endAt - Date.now())/86400000);
+    if (d < 0) return c.muted;
+    if (d <= 3) return c.error;
+    if (d <= 7) return "#f0c060";
+    return c.success;
+  };
+  const srcColor = (s) => s && s.startsWith("과기대") ? "#60c0f0"
+    : s === "링커리어" ? "#7ee8b5" : s === "씽유" ? "#f0a060" : "#c77ee8";
+
+  const Card = ({ i, dim }) => (
+    <a href={i.link} target="_blank" rel="noopener noreferrer"
+      style={{display:"block",background:c.surface,border:`1px solid ${dim?c.border:c.border}`,
+        borderRadius:14,padding:"14px 16px",marginBottom:8,textDecoration:"none",
+        opacity:dim?0.45:1,filter:dim?"grayscale(0.8)":"none",transition:"all 0.15s"}}
+      onMouseEnter={e=>{if(!dim)e.currentTarget.style.borderColor=CC+"66";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=c.border;}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+        <span style={{fontSize:10,fontWeight:700,color:srcColor(i.source),
+          background:`${srcColor(i.source)}15`,border:`1px solid ${srcColor(i.source)}33`,
+          borderRadius:20,padding:"2px 8px"}}>{i.source}</span>
+        {i.field && i.field!=="전체" && (
+          <span style={{fontSize:10,fontWeight:600,color:c.muted,
+            background:c.surface2,border:`1px solid ${c.border}`,
+            borderRadius:20,padding:"2px 8px"}}>{i.field}</span>
+        )}
+        {i.relevant === false && (
+          <span style={{fontSize:10,fontWeight:600,color:c.muted,
+            background:"none",border:`1px dashed ${c.border}`,
+            borderRadius:20,padding:"2px 8px"}}>참고</span>
+        )}
+        {ddayOf(i) && (
+          <span style={{fontSize:10,fontWeight:700,color:ddayColor(i),
+            background:`${ddayColor(i)}15`,border:`1px solid ${ddayColor(i)}33`,
+            borderRadius:20,padding:"2px 8px"}}>{ddayOf(i)}</span>
+        )}
+      </div>
+      <div style={{fontSize:14,fontWeight:700,color:c.text,lineHeight:1.45,marginBottom:5}}>{i.title}</div>
+      <div style={{fontSize:11,color:c.muted,display:"flex",gap:8,flexWrap:"wrap"}}>
+        {i.org && <span>{i.org}</span>}
+        {(i.period||i.date) && <span>· {i.period||i.date}</span>}
+      </div>
+    </a>
+  );
+
+  return (
+    <div style={{minHeight:"100vh",background:c.bg,color:c.text,fontFamily:"'Apple SD Gothic Neo','Noto Sans KR',sans-serif",paddingBottom:60}}>
+      {/* HEADER */}
+      <div style={{borderBottom:`1px solid ${c.border}`,padding:"14px 20px",display:"flex",alignItems:"center",gap:12,background:`linear-gradient(180deg,${c.surface},${c.bg})`}}>
+        <button onClick={onBack} style={{background:`${CC}15`,border:`1px solid ${CC}33`,borderRadius:8,padding:"6px 12px",cursor:"pointer",color:CC,fontSize:13,fontWeight:600}}>← 홈</button>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+            <span style={{fontSize:20}}>🏆</span>
+            <h1 style={{margin:0,fontSize:20,fontWeight:700,color:CC}}>공모전 / 대외활동 / 교육</h1>
+          </div>
+          <p style={{margin:0,fontSize:11,color:c.muted}}>
+            {data.updatedAt ? `${new Date(data.updatedAt).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 기준` : "수집 대기"}
+            {" · 총 "}{all.length}건
+          </p>
+        </div>
+        {user.isAdmin && (
+          <button onClick={doRefresh} disabled={refreshing}
+            style={{background:"none",border:`1px solid ${c.border}`,borderRadius:8,padding:"6px 10px",cursor:"pointer",color:c.muted,fontSize:12,flexShrink:0}}>
+            {refreshing?"수집중":"↻ 수집"}
+          </button>
+        )}
+      </div>
+
+      {/* TABS */}
+      <div style={{display:"flex",padding:"0 12px",borderBottom:`1px solid ${c.border}`}}>
+        {TABS.map(t=>{
+          const n = all.filter(i=>i.category===t && !i.closed).length;
+          return (
+            <button key={t} onClick={()=>{setTab(t);setShowClosed(false);setField("전체");}}
+              style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"11px 4px 9px",
+                fontSize:13,fontWeight:tab===t?700:400,color:tab===t?CC:c.muted,whiteSpace:"nowrap",
+                borderBottom:tab===t?`2px solid ${CC}`:"2px solid transparent"}}>
+              {t}{n>0 && <span style={{fontSize:11,fontWeight:400,marginLeft:3,opacity:0.8}}>{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{padding:"16px 20px",maxWidth:560,margin:"0 auto"}}>
+        {msg && (
+          <div style={{background:msg.startsWith("✅")?`${c.success}15`:`${c.error}15`,
+            border:`1px solid ${msg.startsWith("✅")?c.success:c.error}44`,borderRadius:10,
+            padding:"10px 14px",fontSize:13,color:msg.startsWith("✅")?c.success:c.error,marginBottom:12}}>
+            {msg}
+          </div>
+        )}
+
+        {/* MSDE 관련만 보기 토글 */}
+        {hiddenCount > 0 && (
+          <button onClick={()=>{setOnlyRel(v=>!v);setField("전체");}}
+            style={{width:"100%",display:"flex",alignItems:"center",gap:10,
+              background:onlyRel?`${CC}12`:c.surface,
+              border:`1px solid ${onlyRel?CC+"44":c.border}`,borderRadius:10,
+              padding:"10px 14px",marginBottom:12,cursor:"pointer",textAlign:"left"}}>
+            <span style={{width:36,height:20,borderRadius:20,flexShrink:0,
+              background:onlyRel?CC:c.border,position:"relative",transition:"all 0.2s"}}>
+              <span style={{position:"absolute",top:2,left:onlyRel?18:2,width:16,height:16,
+                borderRadius:"50%",background:onlyRel?c.bg:c.muted,transition:"all 0.2s"}}/>
+            </span>
+            <span style={{flex:1,fontSize:13,fontWeight:600,color:onlyRel?CC:c.muted}}>
+              🎓 대학생·MSDE 관련만 보기
+            </span>
+            <span style={{fontSize:11,color:c.muted,flexShrink:0}}>
+              {onlyRel?`${hiddenCount}건 숨김`:"전체 표시중"}
+            </span>
+          </button>
+        )}
+
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 제목·주최기관 검색..."
+          style={{width:"100%",padding:"10px 14px",background:c.surface,border:`1px solid ${CC}33`,
+            borderRadius:10,color:c.text,fontSize:14,outline:"none",marginBottom:12,boxSizing:"border-box",fontFamily:"inherit"}}/>
+
+        {/* 분야 필터 */}
+        {showFields && (
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+            {["전체",...fieldList].map(f=>{
+              const active = field===f;
+              const n = f==="전체" ? inTab.filter(i=>!i.closed).length : (fieldCounts[f]||0);
+              return (
+                <button key={f} onClick={()=>setField(f)}
+                  style={{padding:"5px 11px",borderRadius:20,
+                    border:`1px solid ${active?CC:c.border}`,
+                    background:active?`${CC}20`:"none",
+                    color:active?CC:c.muted,fontSize:12,fontWeight:active?700:500,
+                    cursor:"pointer",whiteSpace:"nowrap"}}>
+                  {f}<span style={{fontSize:10,fontWeight:400,marginLeft:4,opacity:0.75}}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {loading
+          ? <div style={{textAlign:"center",padding:"60px 0",color:c.muted}}>불러오는 중...</div>
+          : all.length===0
+            ? <div style={{textAlign:"center",padding:"60px 0",color:c.muted}}>
+                <div style={{fontSize:40,marginBottom:12}}>🏆</div>
+                <div>아직 수집된 공고가 없어요</div>
+                <div style={{fontSize:12,marginTop:6}}>
+                  {user.isAdmin ? "우측 상단 '수집' 버튼을 눌러주세요" : "하루 2회 자동으로 갱신돼요"}
+                </div>
+              </div>
+            : (
+              <>
+                {/* 진행중 */}
+                {open.length===0
+                  ? <div style={{textAlign:"center",padding:"40px 0",color:c.muted,fontSize:13}}>
+                      {search.trim()?"검색 결과가 없어요":"진행중인 공고가 없어요"}
+                    </div>
+                  : <>
+                      <div style={{fontSize:11,color:c.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>
+                        진행중 {open.length}건
+                      </div>
+                      {open.map((i,k)=><Card key={k} i={i} dim={false}/>)}
+                    </>
+                }
+
+                {/* 마감 — 회색 처리해서 하단 */}
+                {closed.length>0 && (
+                  <div style={{marginTop:24}}>
+                    <button onClick={()=>setShowClosed(v=>!v)}
+                      style={{width:"100%",background:"none",border:`1px solid ${c.border}`,
+                        borderRadius:10,padding:"10px",cursor:"pointer",color:c.muted,
+                        fontSize:12,fontWeight:600,marginBottom:showClosed?12:0}}>
+                      {showClosed?"▲ 마감된 공고 숨기기":`▼ 마감된 공고 ${closed.length}건 보기`}
+                    </button>
+                    {showClosed && closed.map((i,k)=><Card key={k} i={i} dim={true}/>)}
+                  </div>
+                )}
+              </>
+            )
+        }
+      </div>
+    </div>
+  );
+}
+
 // ── BETTING PAGE ──────────────────────────────────────────
 function BettingPage({ onBack, user, onUserUpdate }) {
   const [bets, setBets]           = useState([]);
@@ -4596,12 +4843,12 @@ function HomePage({ onNavigate, user, onLogout, onlineCount, unreadCount }) {
       sub: "랜덤 뽑기",
     },
     {
-      id: "betting",
-      emoji: "🎰",
-      title: "미니게임",
-      desc: "매일 500코인 지급 · 주간 랭킹",
+      id: "contest",
+      emoji: "🏆",
+      title: "공모전 / 대외활동 / 교육",
+      desc: "공모전 · 경진대회 · 대외활동 · 교육",
       color: c.bet,
-      sub: user.isAdmin ? "관리자 모드" : `내 코인: ${(user.coins||0).toLocaleString()}`,
+      sub: "분야별 · 하루 2회 자동 수집",
     },
     {
       id: "suggest",
@@ -5129,6 +5376,7 @@ function App() {
   if (page === "piano")   return <InstrumentPage type="piano"  onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "guitar")  return <InstrumentPage type="guitar" onBack={()=>setPage("instruments")} user={user}/>;
   if (page === "rental")  return <RentalPage onBack={()=>setPage("instruments")} user={user}/>;
+  if (page === "contest")    return <ContestPage onBack={()=>setPage("home")} user={user}/>;
   if (page === "betting")    return <BettingPage onBack={()=>setPage("home")} user={user} onUserUpdate={u=>{setUser(u);try{localStorage.setItem("msde_user",JSON.stringify(u));}catch(e){}}}/>;
   if (page === "food")       return <FoodPage onBack={()=>setPage("home")}/>;
   if (page === "messages")   return <MessagesPage onBack={()=>setPage("home")} user={user}/>;
