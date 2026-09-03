@@ -4,3 +4,8 @@
 # 팀플 사전 알림: 매 시간 정각 실행 (UTC, KST = UTC+9)
 [functions."schedule-notify"]
   schedule = "0 * * * *"
+
+# 공모전/경진대회/대외활동/교육 정보 수집: 하루 2회
+# 21:00 UTC = 06:00 KST(익일) / 09:00 UTC = 18:00 KST
+[functions."crawl-contests"]
+  schedule = "0 21,9 * * *"
