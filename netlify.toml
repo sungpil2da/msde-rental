@@ -5,7 +5,9 @@
 [functions."schedule-notify"]
   schedule = "0 * * * *"
 
-# 공모전/경진대회/대외활동/교육 정보 수집: 하루 2회
+# 공모전/경진대회/대외활동/교육 자동 수집: 하루 2회
 # 21:00 UTC = 06:00 KST(익일) / 09:00 UTC = 18:00 KST
-[functions."crawl-contests"]
+# 주의: schedule 이 걸린 함수는 URL 직접 호출이 403 으로 막히므로
+#       수동 수집용 crawl-contests 에는 schedule 을 걸지 않는다.
+[functions."crawl-contests-cron"]
   schedule = "0 21,9 * * *"
