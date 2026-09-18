@@ -1,5 +1,5 @@
 /**
- * Netlify Function: crawl-contests
+ * Netlify Function: crawl-contests  (수동 호출 전용)
  * 공모전 / 경진대회 / 대외활동 / 교육 정보 수집 → Firebase 저장
  * 카테고리 + 분야(field) + MSDE 관련도 + 대학생 참가가능 여부 자동 분류
  *
@@ -500,7 +500,6 @@ async function runCrawl() {
 }
 
 // ─── 올콘 접근 진단용 ───
-// Netlify(AWS) IP 에서 올콘이 열리는지, 열리면 HTML 구조가 어떤지 확인
 async function debugAllcon() {
   const results = [];
   for (const t of [1, 2]) {
@@ -509,66 +508,49 @@ async function debugAllcon() {
     try {
       const r = await fetch(url, { headers: HFULL });
       entry.status = r.status;
-      entry.contentType = r.headers.get('content-type') || '';
       const html = await r.text();
       entry.length = html.length;
-      // 상세 링크 후보 패턴 수집 (파서 작성용)
-      const hrefs = [...html.matchAll(/<a[^>]*href=["']?([^"'\s>]+)["']?/gi)]
-        .map(m => m[1]).filter(h => /\d/.test(h));
-      const prefix = {};
-      hrefs.forEach(h => {
-        const k = (h.match(/^(?:https?:\/\/[^/]+)?(\/[a-zA-Z_-]+)/) || [])[1];
-        if (k) prefix[k] = (prefix[k] || 0) + 1;
-      });
-      entry.linkPrefixes = Object.entries(prefix).sort((a, b) => b[1] - a[1]).slice(0, 10);
-      entry.htmlSample = html.slice(0, 1500);
+      entry.htmlSample = html.slice(0, 1200);
       try { entry.parsed = (await allcon(t)).length; }
       catch (e) { entry.parsed = 'fail: ' + String(e.message); }
-    } catch (e) {
-      entry.error = String(e.message);
-    }
+    } catch (e) { entry.error = String(e.message); }
     results.push(entry);
   }
   return results;
 }
 
+// 수집 실행 + Firebase 저장 (수동/스케줄 공용 로직)
+async function collectAndSave() {
+  const res = await runCrawl();
+  const payload = {
+    items: res.items, updatedAt: Date.now(),
+    report: res.report, total: res.total, dropped: res.dropped,
+  };
+  const fb = await fetch(`${FIREBASE_URL}/contests.json`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!fb.ok) throw new Error('firebase write failed: ' + fb.status);
+  const rel = res.items.filter(i => i.relevant).length;
+  console.log('[crawl-contests]', res.report.join(' | '),
+              `→ ${res.items.length}건 저장 (관련 ${rel})`);
+  return { ok: true, saved: res.items.length, relevant: rel,
+           total: res.total, dropped: res.dropped, report: res.report };
+}
+
 exports.handler = async (event) => {
-  const isScheduled = !event || !event.queryStringParameters;
   const qs = (event && event.queryStringParameters) || {};
-  const secret = isScheduled ? SECRET : (qs.secret || '');
-  if (secret !== SECRET) {
+  if ((qs.secret || '') !== SECRET) {
     return { statusCode: 401, body: JSON.stringify({ error: 'unauthorized' }) };
   }
-
-  // 진단 모드
   if (qs.debug === 'allcon') {
-    const d = await debugAllcon();
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify(d, null, 2),
-    };
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json; charset=utf-8' },
+             body: JSON.stringify(await debugAllcon(), null, 2) };
   }
-
   try {
-    const res = await runCrawl();
-    const payload = {
-      items: res.items, updatedAt: Date.now(),
-      report: res.report, total: res.total, dropped: res.dropped,
-    };
-    const fb = await fetch(`${FIREBASE_URL}/contests.json`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!fb.ok) throw new Error('firebase write failed: ' + fb.status);
-    const rel = res.items.filter(i => i.relevant).length;
-    console.log('[crawl-contests]', res.report.join(' | '),
-                `→ ${res.items.length}건 저장 (관련 ${rel} / 제외 ${res.items.length - rel})`);
-    return {
-      statusCode: 200, headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ok: true, saved: res.items.length, relevant: rel,
-                             total: res.total, dropped: res.dropped, report: res.report }),
-    };
+    const out = await collectAndSave();
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify(out) };
   } catch (e) {
     console.error('[crawl-contests] error:', e);
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: String(e) }) };
